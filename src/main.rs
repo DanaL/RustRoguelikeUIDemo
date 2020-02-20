@@ -103,6 +103,8 @@ fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Fon
 }
 
 fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) -> Result<(), String> {
+	// instead of clear the canvas, draw a fill_rect to preserve the message line
+	canvas.clear();
 	for row in -5..5 {
 		for col in -5..5 {
 			let actual_r: i32 = state.player_row as i32 + row;
@@ -149,6 +151,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 	canvas.present();
 
     'mainloop: loop {
+		let mut update = false;
         for event in sdl_context.event_pump()?.poll_iter() {
             match event {
                 Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
@@ -157,20 +160,33 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 					write_msg("...all alike.", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
+					state.player_col -= 1;
+					update = true;
 					write_msg("move west...", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					write_msg("move north...", &mut canvas, &font);
-				},
-				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
+					state.player_row += 1;
+					update = true;
 					write_msg("move south...", &mut canvas, &font);
 				},
+				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
+					state.player_row -= 1;
+					update = true;
+					write_msg("move north...", &mut canvas, &font);
+				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
+					state.player_col += 1;
+					update = true;
 					write_msg("move east...", &mut canvas, &font);
 				},
                 _ => {}
             }
         }
+	
+		if update {
+			draw_dungeon(dungeon, &mut canvas, &font, &state);
+			canvas.present();
+		}
     }
 
     Ok(())
