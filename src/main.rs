@@ -1,4 +1,7 @@
+extern crate rand;
 extern crate sdl2;
+
+use rand::Rng;
 
 use std::cell::Cell;
 use std::env;
@@ -12,6 +15,21 @@ use sdl2::render::WindowCanvas;
 use sdl2::ttf::Font;
 use sdl2::pixels::Color;
 
+static BLACK: Color = Color::RGBA(0, 0, 0, 255);
+static WHITE: Color = Color::RGBA(255, 255, 255, 255);
+static GREY: Color = Color::RGBA(136, 136, 136, 255);
+static DARK_GREY: Color = Color::RGBA(85, 85, 85, 255);
+static GREEN: Color = Color::RGBA(46, 139, 87, 255);
+static BROWN: Color = Color::RGBA(153, 0, 0, 255);
+
+#[derive(Debug, Clone, Copy)]
+enum Tile {
+	Wall,
+	Tree,
+	Dirt,
+	Player,
+}
+
 struct DisplayInfo {
 	scr_width: u32,
 	scr_height: u32,
@@ -23,33 +41,39 @@ impl DisplayInfo {
 	}
 }
 
-fn fetch_dungeon() -> Vec<Vec<char>> {
-	let mut grid = Vec::new();
-	let txt = fs::read_to_string("dungeon.txt").unwrap();
+fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
+	let mut dungeon = vec![vec![Tile::Wall; 30]];
 
-	for line in txt.split('\n') {
-		grid.push(
-			line.trim()
-				.chars()
-				.map(|ch| ch)
-				.collect::<Vec<char>>());
+	for r in 0..28 {
+		let mut row = vec![Tile::Wall];
+		for c in 0..28 {
+			if rand::thread_rng().gen_range(0, 2) == 0 {
+				row.push(Tile::Tree);
+			} else {
+				row.push(Tile::Dirt);
+			}
+		}
+		row.push(Tile::Wall);
+		dungeon.push(row);
 	}
+	
+	dungeon.push(vec![Tile::Wall; 30]);
 
-	grid
+	dungeon
 }
 
 fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo) -> Result<(), String> {
 	println!("{}", msg);
 
-    canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
+    canvas.set_draw_color(BLACK);
 	canvas.fill_rect(Rect::new(0, 0, di.scr_width * 14, 28));
 
     let surface = font.render(msg)
-        .blended(Color::RGBA(255, 255, 255, 255)).map_err(|e| e.to_string())?;
+        .blended(WHITE).map_err(|e| e.to_string())?;
     let texture_creator = canvas.texture_creator();
     let texture = texture_creator.create_texture_from_surface(&surface)
         .map_err(|e| e.to_string())?;
-    canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
+    canvas.set_draw_color(BLACK);
 	let rect = Rect::new(0, 0, msg.len() as u32 * 14, 28);
     canvas.copy(&texture, None, Some(rect))?;
 
@@ -58,26 +82,38 @@ fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo
 	Ok(())
 }
 
-fn draw_dungeon(dungeon: &Vec<Vec<char>>, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo) -> Result<(), String> {
-	let mut rc = 1;
-	for row in dungeon {
-		let line: String = row.into_iter().collect();
-		let surface = font.render(&line)
-        	.blended(Color::RGBA(255, 255, 255, 255)).map_err(|e| e.to_string())?;
-		let texture_creator = canvas.texture_creator();
-		let texture = texture_creator.create_texture_from_surface(&surface)
-			.map_err(|e| e.to_string())?;
-		canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
-		let rect = Rect::new(0, rc * 28, line.len() as u32 * 14, 28);
-		rc += 1;
-		canvas.copy(&texture, None, Some(rect))?;
+fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
+	let (ch, char_colour) = match tile {
+		Tile::Wall => ('#', GREY),
+		Tile::Tree => ('#', GREEN),
+		Tile::Dirt => ('.' ,BROWN),
+		Tile::Player => ('@' ,WHITE),
+	};
+
+	let surface = font.render(&ch.to_string())
+		.blended(char_colour).map_err(|e| e.to_string())?;
+	let texture_creator = canvas.texture_creator();
+	let texture = texture_creator.create_texture_from_surface(&surface)
+		.map_err(|e| e.to_string())?;
+	canvas.set_draw_color(BLACK);
+	let rect = Rect::new(c as i32 * 14, (r as i32 + 1) * 28, 14, 28);
+	canvas.copy(&texture, None, Some(rect))?;
+
+	Ok(())
+}
+
+fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
+	for row in 0..dungeon.len() {
+		for col in 0..dungeon[row].len() {
+			draw_sq(row, col, dungeon[row][col], canvas, font);
+		}
 	}
 	canvas.present();
 
 	Ok(())
 }
 
-fn run(dungeon: &Vec<Vec<char>>) -> Result<(), String> {
+fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsys = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
@@ -97,14 +133,11 @@ fn run(dungeon: &Vec<Vec<char>>) -> Result<(), String> {
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
     canvas.clear();
 
-    //font.set_style(sdl2::ttf::FontStyle::BOLD);
-
-    // render a surface, and convert it to a texture bound to the canvas
 	let di = DisplayInfo::new(screen_width, screen_height);
 	let msg = "A maze of twisty passages...";
 
 	write_msg(msg, &mut canvas, &font, &di);
-	draw_dungeon(dungeon, &mut canvas, &font, &di);
+	draw_dungeon(dungeon, &mut canvas, &font);
 	canvas.present();
 
     'mainloop: loop {
@@ -136,8 +169,8 @@ fn run(dungeon: &Vec<Vec<char>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let dungeon = fetch_dungeon();
-	println!("{:?}", dungeon);
+	let mut dungeon = make_rando_test_dungeon();
+	dungeon[2][2] = Tile::Player;
 	run(&dungeon)?;
 
     Ok(())

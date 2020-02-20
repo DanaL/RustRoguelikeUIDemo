@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 sdl2 = "0.33"
+rand = "0.7.3"
 
 [features]
 default = ["sdl2/ttf"]
