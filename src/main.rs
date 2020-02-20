@@ -24,29 +24,30 @@ static BROWN: Color = Color::RGBA(153, 0, 0, 255);
 
 #[derive(Debug, Clone, Copy)]
 enum Tile {
+	Blank,
 	Wall,
 	Tree,
 	Dirt,
 	Player,
 }
 
-struct DisplayInfo {
-	scr_width: u32,
-	scr_height: u32,
+struct GameState {
+	player_row: usize,
+	player_col: usize,
 }
 
-impl DisplayInfo {
-	fn new(w: u32, h: u32) -> DisplayInfo {
-		DisplayInfo  {scr_width: w, scr_height: h }
+impl GameState {
+	fn new(r: usize, c: usize) -> GameState {
+		GameState {player_row: r, player_col: c }
 	}
 }
 
 fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 	let mut dungeon = vec![vec![Tile::Wall; 30]];
 
-	for r in 0..28 {
+	for _ in 0..28 {
 		let mut row = vec![Tile::Wall];
-		for c in 0..28 {
+		for _ in 0..28 {
 			if rand::thread_rng().gen_range(0, 2) == 0 {
 				row.push(Tile::Tree);
 			} else {
@@ -62,11 +63,9 @@ fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 	dungeon
 }
 
-fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo) -> Result<(), String> {
-	println!("{}", msg);
-
+fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
     canvas.set_draw_color(BLACK);
-	canvas.fill_rect(Rect::new(0, 0, di.scr_width * 14, 28));
+	canvas.fill_rect(Rect::new(0, 0, 29 * 14, 28));
 
     let surface = font.render(msg)
         .blended(WHITE).map_err(|e| e.to_string())?;
@@ -84,6 +83,7 @@ fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo
 
 fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
 	let (ch, char_colour) = match tile {
+		Tile::Blank => (' ', BLACK),
 		Tile::Wall => ('#', GREY),
 		Tile::Tree => ('#', GREEN),
 		Tile::Dirt => ('.' ,BROWN),
@@ -102,10 +102,20 @@ fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Fon
 	Ok(())
 }
 
-fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
-	for row in 0..dungeon.len() {
-		for col in 0..dungeon[row].len() {
-			draw_sq(row, col, dungeon[row][col], canvas, font);
+fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) -> Result<(), String> {
+	for row in -5..5 {
+		for col in -5..5 {
+			let actual_r: i32 = state.player_row as i32 + row;
+			let actual_c: i32 = state.player_col as i32 + col;
+			let tile = if row == 0 && col == 0 {
+				Tile::Player
+			} else if actual_r < 0 || actual_c < 0 || actual_r >= 30 || actual_c >= 30 {
+				Tile::Blank
+			} else {
+				dungeon[actual_r as usize][actual_c as usize]
+			};
+
+			draw_sq((row + 5) as usize, (col + 5) as usize, tile, canvas, font);
 		}
 	}
 	canvas.present();
@@ -118,11 +128,10 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
     let video_subsys = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 	let font_path: &Path = Path::new("VeraMono.ttf");
-    let mut font = ttf_context.load_font(font_path, 24)?;
+    let font = ttf_context.load_font(font_path, 24)?;
 	let (font_width, font_height) = font.size_of_char(' ').unwrap();
-	println!("{}, {}", font_width, font_height);
-	let screen_width = 26 * font_width;
-	let screen_height = 11 * font_height;
+	let screen_width = 29 * font_width;
+	let screen_height = 12 * font_height;
 
     let window = video_subsys.window("Roguelike UI Demo", screen_width, screen_height)
         .position_centered()
@@ -133,11 +142,10 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
     canvas.clear();
 
-	let di = DisplayInfo::new(screen_width, screen_height);
 	let msg = "A maze of twisty passages...";
-
-	write_msg(msg, &mut canvas, &font, &di);
-	draw_dungeon(dungeon, &mut canvas, &font);
+	write_msg(msg, &mut canvas, &font);
+	let mut state = GameState::new(1, 1);
+	draw_dungeon(dungeon, &mut canvas, &font, &state);
 	canvas.present();
 
     'mainloop: loop {
@@ -146,19 +154,19 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
                 Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
                 Event::Quit {..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
-					write_msg("...all alike.", &mut canvas, &font, &di);
+					write_msg("...all alike.", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					write_msg("move west...", &mut canvas, &font, &di);
+					write_msg("move west...", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					write_msg("move north...", &mut canvas, &font, &di);
+					write_msg("move north...", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					write_msg("move south...", &mut canvas, &font, &di);
+					write_msg("move south...", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					write_msg("move east...", &mut canvas, &font, &di);
+					write_msg("move east...", &mut canvas, &font);
 				},
                 _ => {}
             }
@@ -169,8 +177,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let mut dungeon = make_rando_test_dungeon();
-	dungeon[2][2] = Tile::Player;
+	let dungeon = make_rando_test_dungeon();
 	run(&dungeon)?;
 
     Ok(())
