@@ -1,18 +1,83 @@
 extern crate sdl2;
 
+use std::cell::Cell;
 use std::env;
+use std::fs;
 use std::path::Path;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
-use sdl2::render::TextureQuery;
+use sdl2::render::WindowCanvas;
+use sdl2::ttf::Font;
 use sdl2::pixels::Color;
 
-static SCREEN_WIDTH : u32 = 800;
-static SCREEN_HEIGHT : u32 = 600;
+struct DisplayInfo {
+	scr_width: u32,
+	scr_height: u32,
+}
 
-fn run() -> Result<(), String> {
+impl DisplayInfo {
+	fn new(w: u32, h: u32) -> DisplayInfo {
+		DisplayInfo  {scr_width: w, scr_height: h }
+	}
+}
+
+fn fetch_dungeon() -> Vec<Vec<char>> {
+	let mut grid = Vec::new();
+	let txt = fs::read_to_string("dungeon.txt").unwrap();
+
+	for line in txt.split('\n') {
+		grid.push(
+			line.trim()
+				.chars()
+				.map(|ch| ch)
+				.collect::<Vec<char>>());
+	}
+
+	grid
+}
+
+fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo) -> Result<(), String> {
+	println!("{}", msg);
+
+    canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
+	canvas.fill_rect(Rect::new(0, 0, di.scr_width * 14, 28));
+
+    let surface = font.render(msg)
+        .blended(Color::RGBA(255, 255, 255, 255)).map_err(|e| e.to_string())?;
+    let texture_creator = canvas.texture_creator();
+    let texture = texture_creator.create_texture_from_surface(&surface)
+        .map_err(|e| e.to_string())?;
+    canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
+	let rect = Rect::new(0, 0, msg.len() as u32 * 14, 28);
+    canvas.copy(&texture, None, Some(rect))?;
+
+    canvas.present();
+
+	Ok(())
+}
+
+fn draw_dungeon(dungeon: &Vec<Vec<char>>, canvas: &mut WindowCanvas, font: &Font, di: &DisplayInfo) -> Result<(), String> {
+	let mut rc = 1;
+	for row in dungeon {
+		let line: String = row.into_iter().collect();
+		let surface = font.render(&line)
+        	.blended(Color::RGBA(255, 255, 255, 255)).map_err(|e| e.to_string())?;
+		let texture_creator = canvas.texture_creator();
+		let texture = texture_creator.create_texture_from_surface(&surface)
+			.map_err(|e| e.to_string())?;
+		canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
+		let rect = Rect::new(0, rc * 28, line.len() as u32 * 14, 28);
+		rc += 1;
+		canvas.copy(&texture, None, Some(rect))?;
+	}
+	canvas.present();
+
+	Ok(())
+}
+
+fn run(dungeon: &Vec<Vec<char>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsys = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
@@ -30,30 +95,38 @@ fn run() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-    let texture_creator = canvas.texture_creator();
+    canvas.clear();
 
     //font.set_style(sdl2::ttf::FontStyle::BOLD);
 
     // render a surface, and convert it to a texture bound to the canvas
-	let msg = "A maze of twisty passages.";
-    let surface = font.render(msg)
-        .blended(Color::RGBA(255, 255, 255, 255)).map_err(|e| e.to_string())?;
-    let texture = texture_creator.create_texture_from_surface(&surface)
-        .map_err(|e| e.to_string())?;
+	let di = DisplayInfo::new(screen_width, screen_height);
+	let msg = "A maze of twisty passages...";
 
-    canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
-    canvas.clear();
-
-	let rect = Rect::new(0, 0, msg.len() as u32 * font_width, font_height);
-    canvas.copy(&texture, None, Some(rect))?;
-
-    canvas.present();
+	write_msg(msg, &mut canvas, &font, &di);
+	draw_dungeon(dungeon, &mut canvas, &font, &di);
+	canvas.present();
 
     'mainloop: loop {
         for event in sdl_context.event_pump()?.poll_iter() {
             match event {
                 Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
                 Event::Quit {..} => break 'mainloop,
+				Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
+					write_msg("...all alike.", &mut canvas, &font, &di);
+				},
+				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
+					write_msg("move west...", &mut canvas, &font, &di);
+				},
+				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
+					write_msg("move north...", &mut canvas, &font, &di);
+				},
+				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
+					write_msg("move south...", &mut canvas, &font, &di);
+				},
+				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
+					write_msg("move east...", &mut canvas, &font, &di);
+				},
                 _ => {}
             }
         }
@@ -63,8 +136,9 @@ fn run() -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	run()?;
+	let dungeon = fetch_dungeon();
+	println!("{:?}", dungeon);
+	run(&dungeon)?;
 
     Ok(())
 }
-
