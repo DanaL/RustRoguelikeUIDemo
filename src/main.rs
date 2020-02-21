@@ -252,11 +252,21 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
     canvas.set_draw_color(BLACK);
     canvas.clear();
 
+	let mut state = GameState::new(0, 0);
+	loop {
+		let r = rand::thread_rng().gen_range(1, 29);
+		let c = rand::thread_rng().gen_range(1, 29);
+		match dungeon[r][c] {
+			Tile::Water | Tile::Wall => { continue; },
+			_ => {
+				state.player_row = r;
+				state.player_col = c;
+				break;
+			}
+		}
+	}
+	
 	let mut msg_buff = "A roguelike demo...";
-	let r = rand::thread_rng().gen_range(1, 29);
-	let c = rand::thread_rng().gen_range(1, 29);
-	let mut state = GameState::new(r, c);
-
 	write_msg(msg_buff, &mut canvas, &font);
 	draw_dungeon(dungeon, &mut canvas, &font, &state);
 	canvas.present();
@@ -385,8 +395,6 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 			draw_dungeon(dungeon, &mut canvas, &font, &state);
 			canvas.present();
 		}
-
-		//write_msg("hello, world?", &mut canvas, &font);
     }
 
     Ok(())
