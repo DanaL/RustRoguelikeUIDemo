@@ -3,9 +3,6 @@ extern crate sdl2;
 
 use rand::Rng;
 
-use std::cell::Cell;
-use std::env;
-use std::fs;
 use std::path::Path;
 
 use sdl2::event::Event;
@@ -18,7 +15,6 @@ use sdl2::pixels::Color;
 static BLACK: Color = Color::RGBA(0, 0, 0, 255);
 static WHITE: Color = Color::RGBA(255, 255, 255, 255);
 static GREY: Color = Color::RGBA(136, 136, 136, 255);
-static DARK_GREY: Color = Color::RGBA(85, 85, 85, 255);
 static GREEN: Color = Color::RGBA(46, 139, 87, 255);
 static BROWN: Color = Color::RGBA(153, 0, 0, 255);
 static BLUE: Color = Color::RGBA(0, 0, 221, 255);
@@ -202,7 +198,7 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>,
 	}
 }
 
-fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) -> Result<(), String> {
+fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) {
 	// create a matrix of tiles to display, starting off with blanks and then we'll fill
 	// in the squares that are actually visible.
 	let mut v_matrix: Vec<Vec<Tile>> = Vec::new();
@@ -228,8 +224,6 @@ fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font
 			draw_sq(row, col, v_matrix[row][col], canvas, font);
 		}
 	}
-
-	Ok(())
 }
 
 fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
