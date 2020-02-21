@@ -62,74 +62,6 @@ fn dump_dungeon(dungeon: &Vec<Vec<Tile>>) {
 	}
 }
 
-fn is_passable(dungeon: &Vec<Vec<Tile>>, row: usize, col: usize) -> bool {
-	let tile = dungeon[row][col];
-	match tile {
-		Tile::Blank | Tile::Wall => return false,
-		_ => return true,
-	}
-}
-
-// Using bresenham line casting to detect blocked squares. If a ray hits
-// a Wall before reaching target then we can't see it. Bresenham isn't 
-// really a good way to do this because it leaves blindspots the further
-// away you get. But it should suffice for this, where I'm just mucking
-// around with displaying via SDL2. For a real game I'll use something
-// like shadowcasting, like I did in crashRun.
-fn is_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>) -> bool {
-	let mut x = x1;
-	let mut y = y1;
-	let mut error = 0;
-
-	let mut x_step = 0;
-	let mut delta_x = x2 - x;
-	if delta_x < 0 {
-		delta_x = -delta_x;
-		x_step = -1;
-	} else {
-		x_step = 1;
-	}
-
-	let mut y_step = 0;
-	let mut delta_y = y2 - y;
-	if delta_y < 0 {
-		delta_y = -delta_y;
-		y_step = -1;
-	} else {
-		y_step = 1;
-	}
-
-	if delta_y <= delta_x {
-		let criterion = delta_x / 2;
-		while x != x2 + x_step {
-			if let Tile::Wall = dungeon[x as usize][y as usize] {
-				return false;
-			}
-			x += x_step;
-			error += delta_y;
-			if error > criterion {
-				error -= delta_x;
-				y += y_step;
-			}
-		} 	
-	} else {
-		let criterion = delta_y / 2;
-		while y != y2 + y_step {
-			if let Tile::Wall = dungeon[x as usize][y as usize] {
-				return false;
-			}
-			y += y_step;
-			error += delta_x;
-			if error > criterion {
-				error -= delta_y;
-				x += x_step;
-			}
-		}
-	}
-
-	true
-}
-
 fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 	let mut dungeon = vec![vec![Tile::Wall; 30]];
 
@@ -164,9 +96,22 @@ fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 		}
 	}
 
+	dungeon[1][4] = Tile::Wall;
+	dungeon[2][4] = Tile::Wall;
+	dungeon[3][4] = Tile::Wall;
+	dungeon[4][4] = Tile::Wall;
+
 	dungeon.push(vec![Tile::Wall; 30]);
 
 	dungeon
+}
+
+fn is_passable(dungeon: &Vec<Vec<Tile>>, row: usize, col: usize) -> bool {
+	let tile = dungeon[row][col];
+	match tile {
+		Tile::Blank | Tile::Wall => return false,
+		_ => return true,
+	}
 }
 
 fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
@@ -204,25 +149,94 @@ fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Fon
 	Ok(())
 }
 
+// Using bresenham line casting to detect blocked squares. If a ray hits
+// a Wall before reaching target then we can't see it. Bresenham isn't 
+// really a good way to do this because it leaves blindspots the further
+// away you get. But it should suffice for this, where I'm just mucking
+// around with displaying via SDL2. For a real game I'll use something
+// like shadowcasting, like I did in crashRun.
+fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>,
+		v_matrix: &mut Vec<Vec<Tile>>) {
+	let mut x = x1;
+	let mut y = y1;
+	let mut error = 0;
+
+	let mut x_step = 0;
+	let mut delta_x = x2 - x;
+	if delta_x < 0 {
+		delta_x = -delta_x;
+		x_step = -1;
+	} else {
+		x_step = 1;
+	}
+
+	let mut y_step = 0;
+	let mut delta_y = y2 - y;
+	if delta_y < 0 {
+		delta_y = -delta_y;
+		y_step = -1;
+	} else {
+		y_step = 1;
+	}
+
+	if delta_y <= delta_x {
+		let criterion = delta_x / 2;
+		while x != x2 + x_step {
+			if let Tile::Wall = dungeon[x as usize][y as usize] {
+				return;
+			}
+			x += x_step;
+			error += delta_y;
+			if error > criterion {
+				error -= delta_x;
+				y += y_step;
+			}
+		} 	
+	} else {
+		let criterion = delta_y / 2;
+		while y != y2 + y_step {
+			if let Tile::Wall = dungeon[x as usize][y as usize] {
+				return;
+			}
+			y += y_step;
+			error += delta_x;
+			if error > criterion {
+				error -= delta_y;
+				x += x_step;
+			}
+		}
+	}
+}
+
 fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) -> Result<(), String> {
-	canvas.fill_rect(Rect::new(0, 28, 39 * 14, 38 * 28));
-	
-	for row in -10..10 {
-		for col in -10..10 {
+	// create a matrix of tiles to display, starting off with blanks and then we'll fill
+	// in the squares that are actually visible.
+	let mut v_matrix: Vec<Vec<Tile>> = Vec::new();
+	for _ in 0..21 {
+		v_matrix.push(vec![Tile::Blank; 21]);
+	}
+
+	for row in -10..11 {
+		for col in -10..11 {
 			let actual_r: i32 = state.player_row as i32 + row;
 			let actual_c: i32 = state.player_col as i32 + col;
-			let tile = if row == 0 && col == 0 {
-				Tile::Player
-			} else if actual_r < 0 || actual_c < 0 || actual_r >= 30 || actual_c >= 30 {
-				Tile::Blank
-			} else if is_visible(state.player_col as i32, state.player_row as i32,
-				actual_c as i32, actual_r as i32, dungeon) {
-				dungeon[actual_r as usize][actual_c as usize]
-			} else {
-				Tile::Blank
-			};
 
-			draw_sq((row + 10) as usize, (col + 10) as usize, tile, canvas, font);
+			if row == 0 && col == 0 {
+				v_matrix[(row + 10) as usize][(col + 10) as usize] = Tile::Player;
+			} else if actual_r < 0 || actual_c < 0 || actual_r >= 30 || actual_c >= 30 {
+				v_matrix[(row + 10) as usize][(col + 10) as usize] = Tile::Blank;
+			} else {  
+				mark_visible(state.player_col as i32, state.player_row as i32,
+					actual_c as i32, actual_r as i32, dungeon, &mut v_matrix) ;
+			}
+		}
+	}
+
+	canvas.fill_rect(Rect::new(0, 28, 39 * 14, 38 * 28));
+
+	for row in 0..21 {
+		for col in 0..21 {
+			draw_sq(row, col, v_matrix[row][col], canvas, font);
 		}
 	}
 
