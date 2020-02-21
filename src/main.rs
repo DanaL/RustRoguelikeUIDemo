@@ -43,12 +43,91 @@ impl GameState {
 	}
 }
 
+fn dump_dungeon(dungeon: &Vec<Vec<Tile>>) {
+	for r in dungeon {
+		let mut chs: Vec<char> = Vec::new();
+		for tile in r {
+			let ch = match tile {		
+				Tile::Blank => ' ',
+				Tile::Wall => '#',
+				Tile::Tree => 'T',
+				Tile::Dirt => '.',
+				Tile::Grass => '.',
+				Tile::Player => '@',
+			};
+			chs.push(ch);
+		}
+		let line: String = chs.into_iter().collect();
+		println!("{}", line);
+	}
+}
+
 fn is_passable(dungeon: &Vec<Vec<Tile>>, row: usize, col: usize) -> bool {
 	let tile = dungeon[row][col];
 	match tile {
 		Tile::Blank | Tile::Wall => return false,
 		_ => return true,
 	}
+}
+
+// Using bresenham line casting to detect blocked squares. If a ray hits
+// a Wall before reaching target then we can't see it. Bresenham isn't 
+// really a good way to do this because it leaves blindspots the further
+// away you get. But it should suffice for this, where I'm just mucking
+// around with displaying via SDL2. For a real game I'll use something
+// like shadowcasting, like I did in crashRun.
+fn is_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>) -> bool {
+	let mut x = x1;
+	let mut y = y1;
+	let mut error = 0;
+
+	let mut x_step = 0;
+	let mut delta_x = x2 - x;
+	if delta_x < 0 {
+		delta_x = -delta_x;
+		x_step = -1;
+	} else {
+		x_step = 1;
+	}
+
+	let mut y_step = 0;
+	let mut delta_y = y2 - y;
+	if delta_y < 0 {
+		delta_y = -delta_y;
+		y_step = -1;
+	} else {
+		y_step = 1;
+	}
+
+	if delta_y <= delta_x {
+		let criterion = delta_x / 2;
+		while x != x2 + x_step {
+			if let Tile::Wall = dungeon[x as usize][y as usize] {
+				return false;
+			}
+			x += x_step;
+			error += delta_y;
+			if error > criterion {
+				error -= delta_x;
+				y += y_step;
+			}
+		} 	
+	} else {
+		let criterion = delta_y / 2;
+		while y != y2 + y_step {
+			if let Tile::Wall = dungeon[x as usize][y as usize] {
+				return false;
+			}
+			y += y_step;
+			error += delta_x;
+			if error > criterion {
+				error -= delta_y;
+				x += x_step;
+			}
+		}
+	}
+
+	true
 }
 
 fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
@@ -69,7 +148,22 @@ fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 		row.push(Tile::Wall);
 		dungeon.push(row);
 	}
-	
+
+	for _ in 0..3 {
+		let r = rand::thread_rng().gen_range(5, 25);
+		let c = rand::thread_rng().gen_range(5, 25);
+		let n = rand::thread_rng().gen_range(0, 2);
+		if n == 0 {
+			for c2 in c..c+4 {
+				dungeon[r][c2] = Tile::Wall;
+			}
+		} else {
+			for r2 in r..r+4 {
+				dungeon[r2][c] = Tile::Wall;
+			}
+		}
+	}
+
 	dungeon.push(vec![Tile::Wall; 30]);
 
 	dungeon
@@ -121,8 +215,11 @@ fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font
 				Tile::Player
 			} else if actual_r < 0 || actual_c < 0 || actual_r >= 30 || actual_c >= 30 {
 				Tile::Blank
-			} else {
+			} else if is_visible(state.player_col as i32, state.player_row as i32,
+				actual_c as i32, actual_r as i32, dungeon) {
 				dungeon[actual_r as usize][actual_c as usize]
+			} else {
+				Tile::Blank
 			};
 
 			draw_sq((row + 10) as usize, (col + 10) as usize, tile, canvas, font);
@@ -166,9 +263,10 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
         for event in sdl_context.event_pump()?.poll_iter() {
             match event {
                 Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
-                Event::Quit {..} => break 'mainloop,
+                Event::Quit {..} |
+				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					if is_passable(dungeon, state.player_col - 1, state.player_row) {
+					if is_passable(dungeon, state.player_row, state.player_col - 1) {
 						state.player_col -= 1;
 						msg_buff = "";
 					} else {
@@ -178,7 +276,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					if is_passable(dungeon, state.player_col, state.player_row + 1) {
+					if is_passable(dungeon, state.player_row + 1, state.player_col) {
 						state.player_row += 1;
 						msg_buff = "";
 					} else {
@@ -188,7 +286,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					if is_passable(dungeon, state.player_col, state.player_row - 1) {
+					if is_passable(dungeon, state.player_row - 1, state.player_col) {
 						state.player_row -= 1;
 						msg_buff = "";
 					} else {
@@ -198,7 +296,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					if is_passable(dungeon, state.player_col + 1, state.player_row) {
+					if is_passable(dungeon, state.player_row, state.player_col + 1) {
 						state.player_col += 1;
 						msg_buff = "";
 					} else {
@@ -225,6 +323,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 
 fn main() -> Result<(), String> {
 	let dungeon = make_rando_test_dungeon();
+	dump_dungeon(&dungeon);	
 	run(&dungeon)?;
 
     Ok(())
