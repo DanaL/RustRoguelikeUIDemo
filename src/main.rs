@@ -42,6 +42,14 @@ impl GameState {
 	}
 }
 
+fn is_passable(dungeon: &Vec<Vec<Tile>>, row: usize, col: usize) -> bool {
+	let tile = dungeon[row][col];
+	match tile {
+		Tile::Blank | Tile::Wall => return false,
+		_ => return true,
+	}
+}
+
 fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 	let mut dungeon = vec![vec![Tile::Wall; 30]];
 
@@ -64,7 +72,6 @@ fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
 }
 
 fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
-    canvas.set_draw_color(BLACK);
 	canvas.fill_rect(Rect::new(0, 0, 29 * 14, 28));
 
     let surface = font.render(msg)
@@ -72,12 +79,11 @@ fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), St
     let texture_creator = canvas.texture_creator();
     let texture = texture_creator.create_texture_from_surface(&surface)
         .map_err(|e| e.to_string())?;
-    canvas.set_draw_color(BLACK);
 	let rect = Rect::new(0, 0, msg.len() as u32 * 14, 28);
     canvas.copy(&texture, None, Some(rect))?;
-
+	
     canvas.present();
-
+	
 	Ok(())
 }
 
@@ -103,8 +109,8 @@ fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Fon
 }
 
 fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) -> Result<(), String> {
-	// instead of clear the canvas, draw a fill_rect to preserve the message line
-	canvas.clear();
+	canvas.fill_rect(Rect::new(0, 28, 29 * 14, 28 * 28));
+	
 	for row in -5..5 {
 		for col in -5..5 {
 			let actual_r: i32 = state.player_row as i32 + row;
@@ -142,6 +148,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+    canvas.set_draw_color(BLACK);
     canvas.clear();
 
 	let msg = "A maze of twisty passages...";
@@ -160,24 +167,40 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 					write_msg("...all alike.", &mut canvas, &font);
 				},
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					state.player_col -= 1;
-					update = true;
-					write_msg("move west...", &mut canvas, &font);
+					if is_passable(dungeon, state.player_col - 1, state.player_row) {
+						state.player_col -= 1;
+						update = true;
+						write_msg("move west...", &mut canvas, &font);
+					} else {
+						write_msg("Ouch!", &mut canvas, &font);
+					}
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					state.player_row += 1;
-					update = true;
-					write_msg("move south...", &mut canvas, &font);
+					if is_passable(dungeon, state.player_col, state.player_row + 1) {
+						state.player_row += 1;
+						update = true;
+						write_msg("move south...", &mut canvas, &font);
+					} else {
+						write_msg("You bump into a wall!", &mut canvas, &font);
+					}
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					state.player_row -= 1;
-					update = true;
-					write_msg("move north...", &mut canvas, &font);
+					if is_passable(dungeon, state.player_col, state.player_row - 1) {
+						state.player_row -= 1;
+						update = true;
+						write_msg("move north...", &mut canvas, &font);
+					} else {
+						write_msg("You cannot go that way.", &mut canvas, &font);
+					}
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					state.player_col += 1;
-					update = true;
-					write_msg("move east...", &mut canvas, &font);
+					if is_passable(dungeon, state.player_col + 1, state.player_row) {
+						state.player_col += 1;
+						update = true;
+						write_msg("move east...", &mut canvas, &font);
+					} else {
+						write_msg("Impassable!", &mut canvas, &font);
+					}
 				},
                 _ => {}
             }
@@ -187,6 +210,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 			draw_dungeon(dungeon, &mut canvas, &font, &state);
 			canvas.present();
 		}
+
+		//write_msg("hello, world?", &mut canvas, &font);
     }
 
     Ok(())
