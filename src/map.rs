@@ -23,10 +23,10 @@ fn val_to_terrain(val: f32) -> Tile {
 		return Tile::DeepWater;
 	} else if val < -0.25 {
 		return Tile::Water;
-	} else if val < 0.0 {
+	} else if val < 0.20 {
 		return Tile::Sand;	
-	} else if val < 0.25 {
-		return Tile::Dirt;
+	} else if val < 0.45 {
+		return Tile::Grass;
 	} else if val < 0.85 {
 		return Tile::Tree;
 	} else if val < 1.5 {
