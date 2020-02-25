@@ -170,6 +170,44 @@ fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: 
 	}
 }
 
+fn get_move_tuple(mv: &str) -> (i16, i16) {
+	let res: (i16, i16);
+
+  	if mv == "N" {
+		res = (-1, 0)
+	} else if mv == "S" {
+		res = (1, 0)
+	} else if mv == "W" {
+		res = (0, -1)
+	} else if mv == "E" {
+		res = (0, 1)
+	} else if mv == "NW" {
+		res = (-1, -1)
+	} else if mv == "NE" {
+		res = (-1, 1)
+	} else if mv == "SW" {
+		res = (1, -1)
+	} else {
+		res = (1, 1)
+	}
+
+	res
+}
+
+fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str, msg_buff: &mut String) {
+	let mv = get_move_tuple(dir);
+	let next_row = state.player_row as i16 + mv.0;
+	let next_col = state.player_col as i16 + mv.1;
+	let tile = map[next_row as usize][next_col as usize];
+	if map::is_passable(tile) {
+		state.player_col = next_col as usize;
+		state.player_row = next_row as usize;
+		*msg_buff = String::from("");
+	} else  {
+		*msg_buff = String::from("You cannot go that way.");
+	}
+}
+
 fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
@@ -205,8 +243,8 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 		}
 	}
 	
-	let mut msg_buff = "A roguelike demo...";
-	write_msg(msg_buff, &mut canvas, &font);
+	let mut msg_buff = "A roguelike demo...".to_string();
+	write_msg(&msg_buff, &mut canvas, &font);
 	draw_dungeon(dungeon, &mut canvas, &font, &state);
 	canvas.present();
 
@@ -218,95 +256,35 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
                 Event::Quit {..} |
 				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					let tile = dungeon[state.player_row][state.player_col - 1];
-					if map::is_passable(tile) {
-						state.player_col -= 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "W", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					let tile = dungeon[state.player_row + 1][state.player_col];
-					if map::is_passable(tile) {
-						state.player_row += 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "S", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					let tile = dungeon[state.player_row - 1][state.player_col];
-					if map::is_passable(tile) {
-						state.player_row -= 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "N", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					let tile = dungeon[state.player_row][state.player_col + 1];
-					if map::is_passable(tile) {
-						state.player_col += 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "E", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
-					let tile = dungeon[state.player_row - 1][state.player_col - 1];
-					if map::is_passable(tile) {
-						state.player_row -= 1;
-						state.player_col -= 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "NW", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
-					let tile = dungeon[state.player_row - 1][state.player_col + 1];
-					if map::is_passable(tile) {
-						state.player_row -= 1;
-						state.player_col += 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "NW", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
-					let tile = dungeon[state.player_row + 1][state.player_col - 1];
-					if map::is_passable(tile) {
-						state.player_row += 1;
-						state.player_col -= 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "SW", &mut msg_buff);
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
-					let tile = dungeon[state.player_row + 1][state.player_col + 1];
-					if map::is_passable(tile) {
-						state.player_row += 1;
-						state.player_col += 1;
-						msg_buff = "";
-					} else  {
-						msg_buff = "You cannot go that way.";
-					}
-
+					do_move(&dungeon, &mut state, "SE", &mut msg_buff);
 					update = true;
 				},
                 _ => {}
@@ -314,7 +292,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
         }
 	
 		if update {
-			write_msg(msg_buff, &mut canvas, &font);
+			write_msg(&msg_buff, &mut canvas, &font);
 			draw_dungeon(dungeon, &mut canvas, &font, &state);
 			canvas.present();
 		}
