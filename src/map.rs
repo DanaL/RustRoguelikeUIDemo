@@ -3,7 +3,7 @@ extern crate rand;
 use rand::Rng;
 use std::f32;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Tile {
 	Blank,
 	Wall,
