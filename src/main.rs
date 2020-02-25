@@ -20,6 +20,8 @@ static GREY: Color = Color::RGBA(136, 136, 136, 255);
 static GREEN: Color = Color::RGBA(46, 139, 87, 255);
 static BROWN: Color = Color::RGBA(153, 0, 0, 255);
 static BLUE: Color = Color::RGBA(0, 0, 221, 255);
+static LIGHT_BLUE: Color = Color::RGBA(55, 198, 255, 255);
+static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
 
 struct GameState {
 	player_row: usize,
@@ -54,7 +56,11 @@ fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font:
 		map::Tile::Dirt => ('.', BROWN),
 		map::Tile::Grass => ('.', GREEN),
 		map::Tile::Player => ('@', WHITE),
-		map::Tile::Water => ('}', BLUE),
+		map::Tile::Water => ('}', LIGHT_BLUE),
+		map::Tile::DeepWater => ('}', BLUE),
+		map::Tile::Sand => ('.', BEIGE),
+		map::Tile::Mountain => ('^', GREY),
+		map::Tile::SnowPeak => ('^', WHITE),
 	};
 
 	let surface = font.render(&ch.to_string())
@@ -182,10 +188,11 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 
 	let mut state = GameState::new(0, 0);
 	loop {
-		let r = rand::thread_rng().gen_range(1, 29);
-		let c = rand::thread_rng().gen_range(1, 29);
+		let r = rand::thread_rng().gen_range(1, dungeon.len() - 1);
+		let c = rand::thread_rng().gen_range(1, dungeon.len() - 1);
 		match dungeon[r][c] {
-			map::Tile::Water | map::Tile::Wall => { continue; },
+			map::Tile::Water | map::Tile::Wall | map::Tile::DeepWater |
+			map::Tile::Mountain | map::Tile::SnowPeak => { continue; },
 			_ => {
 				state.player_row = r;
 				state.player_col = c;
@@ -209,7 +216,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
 					let tile = dungeon[state.player_row][state.player_col - 1];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Ouch!"},
 						_ => { 
 							state.player_col -= 1;
@@ -222,7 +229,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "You bump into a wall!"},
 						_ => { 
 							state.player_row += 1;
@@ -235,7 +242,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "You cannot go that way."},
 						_ => { 
 							state.player_row -= 1;
@@ -248,7 +255,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
 					let tile = dungeon[state.player_row][state.player_col + 1];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
 						_ => { 
 							state.player_col += 1;
@@ -261,7 +268,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col - 1];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
 						_ => { 
 							state.player_col -= 1;
@@ -275,7 +282,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col + 1];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
 						_ => { 
 							state.player_col += 1;
@@ -289,7 +296,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col - 1];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Your way is blocked."},
 						_ => { 
 							state.player_col -= 1;
@@ -303,7 +310,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col + 1];
 					match tile {
-						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
 						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Your way is blocked."},
 						_ => { 
 							state.player_col += 1;
@@ -329,7 +336,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let dungeon = map::make_rando_test_dungeon();
+	let dungeon = map::generate_island(129);
 	run(&dungeon)?;
 
     Ok(())
