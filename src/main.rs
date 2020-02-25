@@ -88,7 +88,7 @@ fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font:
 // (Although honestly for this simple dmeo it seems to work okay! Mind you,
 // this is a really inefficient implementation since we visible and mark
 // the same squares several times)
-fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>>,
+fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, map: &Vec<Vec<map::Tile>>,
 		v_matrix: &mut Vec<Vec<map::Tile>>) {
 	let mut x = x1;
 	let mut y = y1;
@@ -115,9 +115,13 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>
 	if delta_y <= delta_x {
 		let criterion = delta_x / 2;
 		while x != x2 + x_step {
-			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = dungeon[x as usize][y as usize];
+			if !map::in_bounds(map, x, y) {
+				return;
+			}
 
-			if !map::is_clear(dungeon[x as usize][y as usize]) {
+			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = map[x as usize][y as usize];
+
+			if !map::is_clear(map[x as usize][y as usize]) {
 				return;
 			}
 
@@ -131,9 +135,13 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>
 	} else {
 		let criterion = delta_y / 2;
 		while y != y2 + y_step {
-			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = dungeon[x as usize][y as usize];
+			if !map::in_bounds(map, x, y) {
+				return;
+			}
 
-			if !map::is_clear(dungeon[x as usize][y as usize]) {
+			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = map[x as usize][y as usize];
+
+			if !map::is_clear(map[x as usize][y as usize]) {
 				return;
 			}
 

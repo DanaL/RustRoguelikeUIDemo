@@ -18,6 +18,11 @@ pub enum Tile {
 	SnowPeak,
 }
 
+pub fn in_bounds(map: &Vec<Vec<Tile>>, r: i32, c: i32) -> bool {
+	let width = map.len() as i32;
+	r >= 0 && c >= 0 && r < width && c < width
+}
+
 pub fn is_clear(tile: Tile) -> bool {
 	match tile {
 		Tile::Wall | Tile::Blank | Tile::Mountain | Tile::SnowPeak => false,
