@@ -1,6 +1,8 @@
 extern crate rand;
 extern crate sdl2;
 
+mod map;
+
 use rand::Rng;
 
 use std::path::Path;
@@ -19,17 +21,6 @@ static GREEN: Color = Color::RGBA(46, 139, 87, 255);
 static BROWN: Color = Color::RGBA(153, 0, 0, 255);
 static BLUE: Color = Color::RGBA(0, 0, 221, 255);
 
-#[derive(Debug, Clone, Copy)]
-enum Tile {
-	Blank,
-	Wall,
-	Tree,
-	Dirt,
-	Grass,
-	Player,
-	Water,
-}
-
 struct GameState {
 	player_row: usize,
 	player_col: usize,
@@ -39,63 +30,6 @@ impl GameState {
 	fn new(r: usize, c: usize) -> GameState {
 		GameState {player_row: r, player_col: c }
 	}
-}
-
-fn make_rando_test_dungeon() -> Vec<Vec<Tile>> {
-	let mut dungeon = vec![vec![Tile::Wall; 30]];
-
-	for _ in 0..28 {
-		let mut row = vec![Tile::Wall];
-		for _ in 0..28 {
-			let x = rand::thread_rng().gen_range(0, 3);
-			if x == 0 {
-				row.push(Tile::Tree);
-			} else if x == 1 {
-				row.push(Tile::Grass);
-			} else {
-				row.push(Tile::Dirt);
-			}
-		}
-		row.push(Tile::Wall);
-		dungeon.push(row);
-	}
-
-	for _ in 0..3 {
-		let r = rand::thread_rng().gen_range(5, 24);
-		let cc = rand::thread_rng().gen_range(5, 24);
-
-		for rd in -1..2 {
-			let cs = cc - rand::thread_rng().gen_range(2, 5);
-			let ce = cc + rand::thread_rng().gen_range(2, 5);
-			for c in cs..ce+1 {
-				dungeon[(r + rd as i32) as usize][c] = Tile::Water;
-			}
-		}	
-	}
-
-	for _ in 0..3 {
-		let r = rand::thread_rng().gen_range(5, 25);
-		let c = rand::thread_rng().gen_range(5, 25);
-		let n = rand::thread_rng().gen_range(0, 2);
-		if n == 0 {
-			for c2 in c..c+4 {
-				dungeon[r][c2] = Tile::Wall;
-			}
-		} else {
-			for r2 in r..r+4 {
-				dungeon[r2][c] = Tile::Wall;
-			}
-		}
-	}
-
-	dungeon[1][4] = Tile::Wall;
-	dungeon[2][4] = Tile::Wall;
-	dungeon[3][4] = Tile::Wall;
-	dungeon[4][4] = Tile::Wall;
-
-	dungeon.push(vec![Tile::Wall; 30]);
-
-	dungeon
 }
 
 fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
@@ -112,15 +46,15 @@ fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), St
 	Ok(())
 }
 
-fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
+fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
 	let (ch, char_colour) = match tile {
-		Tile::Blank => (' ', BLACK),
-		Tile::Wall => ('#', GREY),
-		Tile::Tree => ('#', GREEN),
-		Tile::Dirt => ('.', BROWN),
-		Tile::Grass => ('.', GREEN),
-		Tile::Player => ('@', WHITE),
-		Tile::Water => ('}', BLUE),
+		map::Tile::Blank => (' ', BLACK),
+		map::Tile::Wall => ('#', GREY),
+		map::Tile::Tree => ('#', GREEN),
+		map::Tile::Dirt => ('.', BROWN),
+		map::Tile::Grass => ('.', GREEN),
+		map::Tile::Player => ('@', WHITE),
+		map::Tile::Water => ('}', BLUE),
 	};
 
 	let surface = font.render(&ch.to_string())
@@ -143,8 +77,8 @@ fn draw_sq(r: usize, c: usize, tile: Tile, canvas: &mut WindowCanvas, font: &Fon
 // (Although honestly for this simple dmeo it seems to work okay! Mind you,
 // this is a really inefficient implementation since we visible and mark
 // the same squares several times)
-fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>,
-		v_matrix: &mut Vec<Vec<Tile>>) {
+fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>>,
+		v_matrix: &mut Vec<Vec<map::Tile>>) {
 	let mut x = x1;
 	let mut y = y1;
 	let mut error = 0;
@@ -171,7 +105,7 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>,
 		let criterion = delta_x / 2;
 		while x != x2 + x_step {
 			v_matrix[(x - x1 + 10) as usize][(y - y1 + 10) as usize] = dungeon[x as usize][y as usize];
-			if let Tile::Wall = dungeon[x as usize][y as usize] {
+			if let map::Tile::Wall = dungeon[x as usize][y as usize] {
 				return;
 			}
 			x += x_step;
@@ -185,7 +119,7 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>,
 		let criterion = delta_y / 2;
 		while y != y2 + y_step {
 			v_matrix[(x - x1 + 10) as usize][(y - y1 + 10) as usize] = dungeon[x as usize][y as usize];
-			if let Tile::Wall = dungeon[x as usize][y as usize] {
+			if let map::Tile::Wall = dungeon[x as usize][y as usize] {
 				return;
 			}
 			y += y_step;
@@ -198,12 +132,12 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<Tile>>,
 	}
 }
 
-fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) {
+fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) {
 	// create a matrix of tiles to display, starting off with blanks and then we'll fill
 	// in the squares that are actually visible.
-	let mut v_matrix: Vec<Vec<Tile>> = Vec::new();
+	let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
 	for _ in 0..21 {
-		v_matrix.push(vec![Tile::Blank; 21]);
+		v_matrix.push(vec![map::Tile::Blank; 21]);
 	}
 
 	for row in -10..11 {
@@ -216,7 +150,7 @@ fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font
 		}
 	}
 
-	v_matrix[10][10] = Tile::Player;
+	v_matrix[10][10] = map::Tile::Player;
 	canvas.fill_rect(Rect::new(0, 28, 39 * 14, 38 * 28));
 
 	for row in 0..21 {
@@ -226,7 +160,7 @@ fn draw_dungeon(dungeon: &Vec<Vec<Tile>>, canvas: &mut WindowCanvas, font: &Font
 	}
 }
 
-fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
+fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
@@ -251,7 +185,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 		let r = rand::thread_rng().gen_range(1, 29);
 		let c = rand::thread_rng().gen_range(1, 29);
 		match dungeon[r][c] {
-			Tile::Water | Tile::Wall => { continue; },
+			map::Tile::Water | map::Tile::Wall => { continue; },
 			_ => {
 				state.player_row = r;
 				state.player_col = c;
@@ -275,8 +209,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
 					let tile = dungeon[state.player_row][state.player_col - 1];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "Ouch!"},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Ouch!"},
 						_ => { 
 							state.player_col -= 1;
 							msg_buff = "";
@@ -288,8 +222,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "You bump into a wall!"},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "You bump into a wall!"},
 						_ => { 
 							state.player_row += 1;
 							msg_buff = "";
@@ -301,8 +235,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "You cannot go that way."},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "You cannot go that way."},
 						_ => { 
 							state.player_row -= 1;
 							msg_buff = "";
@@ -314,8 +248,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
 					let tile = dungeon[state.player_row][state.player_col + 1];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "Impassable!"},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
 						_ => { 
 							state.player_col += 1;
 							msg_buff = "";
@@ -327,8 +261,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col - 1];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "Impassable!"},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
 						_ => { 
 							state.player_col -= 1;
 							state.player_row -= 1;
@@ -341,8 +275,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col + 1];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "Impassable!"},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
 						_ => { 
 							state.player_col += 1;
 							state.player_row -= 1;
@@ -355,8 +289,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col - 1];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "Your way is blocked."},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Your way is blocked."},
 						_ => { 
 							state.player_col -= 1;
 							state.player_row += 1;
@@ -369,8 +303,8 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col + 1];
 					match tile {
-						Tile::Water => { msg_buff = "You cannot swim."},
-						Tile::Wall | Tile::Blank => { msg_buff = "Your way is blocked."},
+						map::Tile::Water => { msg_buff = "You cannot swim."},
+						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Your way is blocked."},
 						_ => { 
 							state.player_col += 1;
 							state.player_row += 1;
@@ -395,7 +329,7 @@ fn run(dungeon: &Vec<Vec<Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let dungeon = make_rando_test_dungeon();
+	let dungeon = map::make_rando_test_dungeon();
 	run(&dungeon)?;
 
     Ok(())
