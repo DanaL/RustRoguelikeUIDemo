@@ -110,7 +110,13 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>
 	if delta_y <= delta_x {
 		let criterion = delta_x / 2;
 		while x != x2 + x_step {
-			v_matrix[(x - x1 + 10) as usize][(y - y1 + 10) as usize] = dungeon[x as usize][y as usize];
+			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = dungeon[x as usize][y as usize];
+			match dungeon[x as usize][y as usize] {
+				map::Tile::Wall => { return; },
+				map::Tile::Mountain => { return; },
+				map::Tile::SnowPeak => { return; },
+				_ => { },
+			}
 			if let map::Tile::Wall = dungeon[x as usize][y as usize] {
 				return;
 			}
@@ -124,7 +130,7 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>
 	} else {
 		let criterion = delta_y / 2;
 		while y != y2 + y_step {
-			v_matrix[(x - x1 + 10) as usize][(y - y1 + 10) as usize] = dungeon[x as usize][y as usize];
+			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = dungeon[x as usize][y as usize];
 			if let map::Tile::Wall = dungeon[x as usize][y as usize] {
 				return;
 			}
@@ -143,11 +149,11 @@ fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: 
 	// in the squares that are actually visible.
 	let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
 	for _ in 0..21 {
-		v_matrix.push(vec![map::Tile::Blank; 21]);
+		v_matrix.push(vec![map::Tile::Blank; 41]);
 	}
 
 	for row in -10..11 {
-		for col in -10..11 {
+		for col in -20..21 {
 			let actual_r: i32 = state.player_row as i32 + row;
 			let actual_c: i32 = state.player_col as i32 + col;
 
@@ -155,14 +161,22 @@ fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: 
 				actual_r as i32, actual_c as i32, dungeon, &mut v_matrix);
 		}
 	}
-
-	v_matrix[10][10] = map::Tile::Player;
-	canvas.fill_rect(Rect::new(0, 28, 39 * 14, 38 * 28));
+	
+	v_matrix[10][20] = map::Tile::Player;
+	canvas.fill_rect(Rect::new(0, 28, 49 * 14, 58 * 28));
 
 	for row in 0..21 {
-		for col in 0..21 {
+		for col in 0..41 {
 			draw_sq(row, col, v_matrix[row][col], canvas, font);
 		}
+	}
+}
+
+fn is_passable(tile: map::Tile) -> bool {
+	match tile {
+		map::Tile::DeepWater | map::Tile::Wall | map::Tile::Blank |
+		map::Tile::Mountain | map::Tile::SnowPeak => false,
+		_ => true
 	}
 }
 
@@ -173,7 +187,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 	let font_path: &Path = Path::new("VeraMono.ttf");
     let font = ttf_context.load_font(font_path, 24)?;
 	let (font_width, font_height) = font.size_of_char(' ').unwrap();
-	let screen_width = 29 * font_width;
+	let screen_width = 49 * font_width;
 	let screen_height = 22 * font_height;
 
     let window = video_subsystem.window("RL Demo", screen_width, screen_height)
@@ -215,108 +229,92 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
 					let tile = dungeon[state.player_row][state.player_col - 1];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Ouch!"},
-						_ => { 
-							state.player_col -= 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_col -= 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "You bump into a wall!"},
-						_ => { 
-							state.player_row += 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_row += 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "You cannot go that way."},
-						_ => { 
-							state.player_row -= 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_row -= 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
 					let tile = dungeon[state.player_row][state.player_col + 1];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
-						_ => { 
-							state.player_col += 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_col += 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col - 1];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
-						_ => { 
-							state.player_col -= 1;
-							state.player_row -= 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_row -= 1;
+						state.player_col -= 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col + 1];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Impassable!"},
-						_ => { 
-							state.player_col += 1;
-							state.player_row -= 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_row -= 1;
+						state.player_col += 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col - 1];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Your way is blocked."},
-						_ => { 
-							state.player_col -= 1;
-							state.player_row += 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_row += 1;
+						state.player_col -= 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col + 1];
-					match tile {
-						map::Tile::DeepWater => { msg_buff = "You cannot swim."},
-						map::Tile::Wall | map::Tile::Blank => { msg_buff = "Your way is blocked."},
-						_ => { 
-							state.player_col += 1;
-							state.player_row += 1;
-							msg_buff = "";
-						},
+					if is_passable(tile) {
+						state.player_row += 1;
+						state.player_col += 1;
+						msg_buff = "";
+					} else  {
+						msg_buff = "You cannot go that way.";
 					}
 
 					update = true;
@@ -336,7 +334,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let dungeon = map::generate_island(129);
+	let dungeon = map::generate_island(65);
 	run(&dungeon)?;
 
     Ok(())
