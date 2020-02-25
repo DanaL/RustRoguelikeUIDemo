@@ -57,9 +57,9 @@ fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font:
 	let (ch, char_colour) = match tile {
 		map::Tile::Blank => (' ', BLACK),
 		map::Tile::Wall => ('#', GREY),
-		map::Tile::Tree => ('#', GREEN),
+		map::Tile::Tree => ('\u{03D9}', GREEN),
 		map::Tile::Dirt => ('.', BROWN),
-		map::Tile::Grass => ('.', GREEN),
+		map::Tile::Grass => ('\u{0316}', GREEN),
 		map::Tile::Player => ('@', WHITE),
 		map::Tile::Water => ('}', LIGHT_BLUE),
 		map::Tile::DeepWater => ('}', BLUE),
@@ -68,7 +68,7 @@ fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font:
 		map::Tile::SnowPeak => ('^', WHITE),
 	};
 
-	let surface = font.render(&ch.to_string())
+	let surface = font.render_char(ch)
 		.blended(char_colour).map_err(|e| e.to_string())?;
 	let texture_creator = canvas.texture_creator();
 	let texture = texture_creator.create_texture_from_surface(&surface)
@@ -225,7 +225,8 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
-	let font_path: &Path = Path::new("VeraMono.ttf");
+	//let font_path: &Path = Path::new("VeraMono.ttf");
+	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
     let font = ttf_context.load_font(font_path, 24)?;
 	let (font_width, font_height) = font.size_of_char(' ').unwrap();
 	let screen_width = 49 * font_width;
