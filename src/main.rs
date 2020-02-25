@@ -134,11 +134,11 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, map: &Vec<Vec<map::Tile>>,
 			}
 
 			// I want trees to not totally block light, but instead reduce visibility
-			if map::Tile::Tree == map[x as usize][y as usize] {
+			if map::Tile::Tree == map[x as usize][y as usize] && !(x == x1 && y == y1) {
 				if x_step > 0 {
-					x_end -= 2;
+					x_end -= 3;
 				} else {
-					x_end += 2;
+					x_end += 3;
 				}
 			}
 
@@ -169,11 +169,11 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, map: &Vec<Vec<map::Tile>>,
 			}
 		
 			// I want trees to not totally block light, but instead reduce visibility
-			if map[x as usize][y as usize] == map::Tile::Tree {
+			if map::Tile::Tree == map[x as usize][y as usize] && !(x == x1 && y == y1) {
 				if y_step > 0 {
-					y_end -= 2;
+					y_end -= 3;
 				} else {
-					y_end += 2;
+					y_end += 3;
 				}
 			}
 			
@@ -249,7 +249,11 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 		state.player_row = next_row as usize;
 		state.write_msg_buff("");
 	} else  {
-		state.write_msg_buff("You cannot go that way.");
+		if tile == map::Tile::DeepWater {
+			state.write_msg_buff("You cannot swim!");
+		} else {
+			state.write_msg_buff("You cannot go that way.");
+		}
 	}
 }
 
