@@ -18,6 +18,21 @@ pub enum Tile {
 	SnowPeak,
 }
 
+pub fn is_clear(tile: Tile) -> bool {
+	match tile {
+		Tile::Wall | Tile::Blank | Tile::Mountain | Tile::SnowPeak => false,
+		_ => true,
+	}
+}
+
+pub fn is_passable(tile: Tile) -> bool {
+	match tile {
+		Tile::DeepWater | Tile::Wall | Tile::Blank |
+		Tile::Mountain | Tile::SnowPeak => false,
+		_ => true,
+	}
+}
+
 fn val_to_terrain(val: f32) -> Tile {
 	if val < -0.5 {
 		return Tile::DeepWater;

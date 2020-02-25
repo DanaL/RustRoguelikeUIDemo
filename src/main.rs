@@ -111,15 +111,11 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>
 		let criterion = delta_x / 2;
 		while x != x2 + x_step {
 			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = dungeon[x as usize][y as usize];
-			match dungeon[x as usize][y as usize] {
-				map::Tile::Wall => { return; },
-				map::Tile::Mountain => { return; },
-				map::Tile::SnowPeak => { return; },
-				_ => { },
-			}
-			if let map::Tile::Wall = dungeon[x as usize][y as usize] {
+
+			if !map::is_clear(dungeon[x as usize][y as usize]) {
 				return;
 			}
+
 			x += x_step;
 			error += delta_y;
 			if error > criterion {
@@ -131,9 +127,11 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, dungeon: &Vec<Vec<map::Tile>
 		let criterion = delta_y / 2;
 		while y != y2 + y_step {
 			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = dungeon[x as usize][y as usize];
-			if let map::Tile::Wall = dungeon[x as usize][y as usize] {
+
+			if !map::is_clear(dungeon[x as usize][y as usize]) {
 				return;
 			}
+
 			y += y_step;
 			error += delta_x;
 			if error > criterion {
@@ -169,14 +167,6 @@ fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: 
 		for col in 0..41 {
 			draw_sq(row, col, v_matrix[row][col], canvas, font);
 		}
-	}
-}
-
-fn is_passable(tile: map::Tile) -> bool {
-	match tile {
-		map::Tile::DeepWater | map::Tile::Wall | map::Tile::Blank |
-		map::Tile::Mountain | map::Tile::SnowPeak => false,
-		_ => true
 	}
 }
 
@@ -229,7 +219,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
 					let tile = dungeon[state.player_row][state.player_col - 1];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_col -= 1;
 						msg_buff = "";
 					} else  {
@@ -240,7 +230,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_row += 1;
 						msg_buff = "";
 					} else  {
@@ -251,7 +241,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_row -= 1;
 						msg_buff = "";
 					} else  {
@@ -262,7 +252,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
 					let tile = dungeon[state.player_row][state.player_col + 1];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_col += 1;
 						msg_buff = "";
 					} else  {
@@ -273,7 +263,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col - 1];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_row -= 1;
 						state.player_col -= 1;
 						msg_buff = "";
@@ -285,7 +275,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
 					let tile = dungeon[state.player_row - 1][state.player_col + 1];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_row -= 1;
 						state.player_col += 1;
 						msg_buff = "";
@@ -297,7 +287,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col - 1];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_row += 1;
 						state.player_col -= 1;
 						msg_buff = "";
@@ -309,7 +299,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 				},
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
 					let tile = dungeon[state.player_row + 1][state.player_col + 1];
-					if is_passable(tile) {
+					if map::is_passable(tile) {
 						state.player_row += 1;
 						state.player_col += 1;
 						msg_buff = "";
@@ -334,8 +324,8 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let dungeon = map::generate_island(65);
-	run(&dungeon)?;
+	let map = map::generate_island(65);
+	run(&map)?;
 
     Ok(())
 }
