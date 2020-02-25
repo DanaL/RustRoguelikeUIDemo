@@ -116,11 +116,10 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, map: &Vec<Vec<map::Tile>>,
 	let mut y_end = y2;
 	if delta_y <= delta_x {
 		let criterion = delta_x / 2;
-		//while x != x_end + x_step {
 		loop {
 			if x_step > 0 && x >= x_end + x_step {
 				break;
-			} else if x <= x_end + x_step {
+			} else if x_step < 0 && x <= x_end + x_step {
 				break;
 			}
 
@@ -152,22 +151,15 @@ fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, map: &Vec<Vec<map::Tile>>,
 		} 	
 	} else {
 		let criterion = delta_y / 2;
-		//while y != y_end + y_step {
 		loop {
 			if y_step > 0 && y >= y_end + y_step {
 				break;
-			} else if y <= x_end + y_step {
+			} else if y_step < 0 && y <= y_end + y_step {
 				break;
 			}
 
 			if !map::in_bounds(map, x, y) {
 				return;
-			}
-
-			//println!("{} {}, {} {}", x, x1, y, y1);
-			if x - x1 + 10 < 0 || x - x1 + 10 > 20 || y - y1 + 20 < 0 || y - y1 + 20 > 40 {
-				println!("{} {} flag!!", x, x1);
-				break;
 			}
 
 			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = map[x as usize][y as usize];
