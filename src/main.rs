@@ -26,23 +26,28 @@ static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
 struct GameState {
 	player_row: usize,
 	player_col: usize,
+	msg_buff: String,
 }
 
 impl GameState {
 	fn new(r: usize, c: usize) -> GameState {
-		GameState {player_row: r, player_col: c }
+		GameState {player_row: r, player_col: c, msg_buff: String::from("") }
+	}
+
+	fn write_msg_buff(&mut self, msg: &str) {
+		self.msg_buff = String::from(msg);
 	}
 }
 
-fn write_msg(msg: &str, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
+fn write_msg(state: &GameState, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
 	canvas.fill_rect(Rect::new(0, 0, 29 * 14, 28));
 
-    let surface = font.render(msg)
+    let surface = font.render(&state.msg_buff)
         .blended(WHITE).map_err(|e| e.to_string())?;
     let texture_creator = canvas.texture_creator();
     let texture = texture_creator.create_texture_from_surface(&surface)
         .map_err(|e| e.to_string())?;
-	let rect = Rect::new(0, 0, msg.len() as u32 * 14, 28);
+	let rect = Rect::new(0, 0, state.msg_buff.len() as u32 * 14, 28);
     canvas.copy(&texture, None, Some(rect))?;
 	
 	Ok(())
@@ -194,7 +199,7 @@ fn get_move_tuple(mv: &str) -> (i16, i16) {
 	res
 }
 
-fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str, msg_buff: &mut String) {
+fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 	let mv = get_move_tuple(dir);
 	let next_row = state.player_row as i16 + mv.0;
 	let next_col = state.player_col as i16 + mv.1;
@@ -202,9 +207,9 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str, msg_buff
 	if map::is_passable(tile) {
 		state.player_col = next_col as usize;
 		state.player_row = next_row as usize;
-		*msg_buff = String::from("");
+		state.write_msg_buff("");
 	} else  {
-		*msg_buff = String::from("You cannot go that way.");
+		state.write_msg_buff("You cannot go that way.");
 	}
 }
 
@@ -242,9 +247,10 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 			}
 		}
 	}
+
 	
-	let mut msg_buff = "A roguelike demo...".to_string();
-	write_msg(&msg_buff, &mut canvas, &font);
+	state.write_msg_buff("A roguelike demo...");
+	write_msg(&state, &mut canvas, &font);
 	draw_dungeon(dungeon, &mut canvas, &font, &state);
 	canvas.present();
 
@@ -256,35 +262,35 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
                 Event::Quit {..} |
 				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					do_move(&dungeon, &mut state, "W", &mut msg_buff);
+					do_move(&dungeon, &mut state, "W");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					do_move(&dungeon, &mut state, "S", &mut msg_buff);
+					do_move(&dungeon, &mut state, "S");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					do_move(&dungeon, &mut state, "N", &mut msg_buff);
+					do_move(&dungeon, &mut state, "N");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					do_move(&dungeon, &mut state, "E", &mut msg_buff);
+					do_move(&dungeon, &mut state, "E");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
-					do_move(&dungeon, &mut state, "NW", &mut msg_buff);
+					do_move(&dungeon, &mut state, "NW");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
-					do_move(&dungeon, &mut state, "NW", &mut msg_buff);
+					do_move(&dungeon, &mut state, "NE");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
-					do_move(&dungeon, &mut state, "SW", &mut msg_buff);
+					do_move(&dungeon, &mut state, "SW");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
-					do_move(&dungeon, &mut state, "SE", &mut msg_buff);
+					do_move(&dungeon, &mut state, "SE");
 					update = true;
 				},
                 _ => {}
@@ -292,7 +298,7 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
         }
 	
 		if update {
-			write_msg(&msg_buff, &mut canvas, &font);
+			write_msg(&state, &mut canvas, &font);
 			draw_dungeon(dungeon, &mut canvas, &font, &state);
 			canvas.present();
 		}
