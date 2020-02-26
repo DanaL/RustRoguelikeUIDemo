@@ -14,6 +14,9 @@ use sdl2::render::WindowCanvas;
 use sdl2::ttf::Font;
 use sdl2::pixels::Color;
 
+const SCREEN_WIDTH: u32 = 49;
+const SCREEN_HEIGHT: u32 = 22;
+
 static BLACK: Color = Color::RGBA(0, 0, 0, 255);
 static WHITE: Color = Color::RGBA(255, 255, 255, 255);
 static GREY: Color = Color::RGBA(136, 136, 136, 255);
@@ -22,6 +25,17 @@ static BROWN: Color = Color::RGBA(153, 0, 0, 255);
 static BLUE: Color = Color::RGBA(0, 0, 221, 255);
 static LIGHT_BLUE: Color = Color::RGBA(55, 198, 255, 255);
 static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
+
+// I have literally zero clue why Rust wants two lifetime parameters
+// here but this shuts the compiler the hell up...
+struct UIInfo<'a, 'b> {
+	screen_width_px: u32,
+	screen_height_px: u32,
+	font_width: u32,
+	font_height: u32,
+	font: &'a Font<'a, 'b>,
+	canvas: &'a mut WindowCanvas,
+}
 
 struct GameState {
 	player_row: usize,
@@ -39,21 +53,21 @@ impl GameState {
 	}
 }
 
-fn write_msg(state: &GameState, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
-	canvas.fill_rect(Rect::new(0, 0, 29 * 14, 28));
+fn write_msg(state: &GameState, ui_info: &mut UIInfo) -> Result<(), String> {
+	ui_info.canvas.fill_rect(Rect::new(0, 0, 29 * 14, 28));
 
-    let surface = font.render(&state.msg_buff)
+    let surface = ui_info.font.render(&state.msg_buff)
         .blended(WHITE).map_err(|e| e.to_string())?;
-    let texture_creator = canvas.texture_creator();
+    let texture_creator = ui_info.canvas.texture_creator();
     let texture = texture_creator.create_texture_from_surface(&surface)
         .map_err(|e| e.to_string())?;
-	let rect = Rect::new(0, 0, state.msg_buff.len() as u32 * 14, 28);
-    canvas.copy(&texture, None, Some(rect))?;
+	let rect = Rect::new(0, 0, state.msg_buff.len() as u32 * ui_info.font_width, ui_info.font_height);
+    ui_info.canvas.copy(&texture, None, Some(rect))?;
 	
 	Ok(())
 }
 
-fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font: &Font) -> Result<(), String> {
+fn draw_sq(r: usize, c: usize, tile: map::Tile, ui_info: &mut UIInfo) -> Result<(), String> {
 	let (ch, char_colour) = match tile {
 		map::Tile::Blank => (' ', BLACK),
 		map::Tile::Wall => ('#', GREY),
@@ -68,13 +82,14 @@ fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font:
 		map::Tile::SnowPeak => ('^', WHITE),
 	};
 
-	let surface = font.render_char(ch)
+	let surface = ui_info.font.render_char(ch)
 		.blended(char_colour).map_err(|e| e.to_string())?;
-	let texture_creator = canvas.texture_creator();
+	let texture_creator = ui_info.canvas.texture_creator();
 	let texture = texture_creator.create_texture_from_surface(&surface)
 		.map_err(|e| e.to_string())?;
-	let rect = Rect::new(c as i32 * 14, (r as i32 + 1) * 28, 14, 28);
-	canvas.copy(&texture, None, Some(rect))?;
+	let rect = Rect::new(c as i32 * ui_info.font_width as i32, 
+		(r as i32 + 1) * ui_info.font_height as i32, ui_info.font_width, ui_info.font_height);
+	ui_info.canvas.copy(&texture, None, Some(rect))?;
 
 	Ok(())
 }
@@ -88,106 +103,102 @@ fn draw_sq(r: usize, c: usize, tile: map::Tile, canvas: &mut WindowCanvas, font:
 // (Although honestly for this simple dmeo it seems to work okay! Mind you,
 // this is a really inefficient implementation since we visible and mark
 // the same squares several times)
-fn mark_visible(x1: i32, y1: i32, x2: i32, y2: i32, map: &Vec<Vec<map::Tile>>,
+fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &Vec<Vec<map::Tile>>,
 		v_matrix: &mut Vec<Vec<map::Tile>>) {
-	let mut x = x1;
-	let mut y = y1;
+	let mut r = r1;
+	let mut c = c1;
 	let mut error = 0;
 
-	let mut x_step = 0;
-	let mut delta_x = x2 - x;
-	if delta_x < 0 {
-		delta_x = -delta_x;
-		x_step = -1;
-	} else {
-		x_step = 1;
-	}
+	let mut r_step = 1;
+	let mut delta_r = r2 - r;
+	if delta_r < 0 {
+		delta_r = -delta_r;
+		r_step = -1;
+	} 
 
-	let mut y_step = 0;
-	let mut delta_y = y2 - y;
-	if delta_y < 0 {
-		delta_y = -delta_y;
-		y_step = -1;
-	} else {
-		y_step = 1;
-	}
+	let mut c_step = 1;
+	let mut delta_c = c2 - c;
+	if delta_c < 0 {
+		delta_c = -delta_c;
+		c_step = -1;
+	} 
 
-	let mut x_end = x2;
-	let mut y_end = y2;
-	if delta_y <= delta_x {
-		let criterion = delta_x / 2;
+	let mut r_end = r2;
+	let mut c_end = c2;
+	if delta_c <= delta_r {
+		let criterion = delta_r / 2;
 		loop {
-			if x_step > 0 && x >= x_end + x_step {
+			if r_step > 0 && r >= r_end + r_step {
 				break;
-			} else if x_step < 0 && x <= x_end + x_step {
+			} else if r_step < 0 && r <= r_end + r_step {
 				break;
 			}
 
-			if !map::in_bounds(map, x, y) {
+			if !map::in_bounds(map, r, c) {
 				return;
 			}
 
-			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = map[x as usize][y as usize];
+			v_matrix[(r - r1 + 10) as usize][(c - c1 + 20) as usize] = map[r as usize][c as usize];
 
-			if !map::is_clear(map[x as usize][y as usize]) {
+			if !map::is_clear(map[r as usize][c as usize]) {
 				return;
 			}
 
 			// I want trees to not totally block light, but instead reduce visibility
-			if map::Tile::Tree == map[x as usize][y as usize] && !(x == x1 && y == y1) {
-				if x_step > 0 {
-					x_end -= 3;
+			if map::Tile::Tree == map[r as usize][c as usize] && !(r == r1 && c == c1) {
+				if r_step > 0 {
+					r_end -= 3;
 				} else {
-					x_end += 3;
+					r_end += 3;
 				}
 			}
 
-			x += x_step;
-			error += delta_y;
+			r += r_step;
+			error += delta_c;
 			if error > criterion {
-				error -= delta_x;
-				y += y_step;
+				error -= delta_r;
+				c += c_step;
 			}
 		} 	
 	} else {
-		let criterion = delta_y / 2;
+		let criterion = delta_c / 2;
 		loop {
-			if y_step > 0 && y >= y_end + y_step {
+			if c_step > 0 && c >= c_end + c_step {
 				break;
-			} else if y_step < 0 && y <= y_end + y_step {
+			} else if c_step < 0 && c <= c_end + c_step {
 				break;
 			}
 
-			if !map::in_bounds(map, x, y) {
+			if !map::in_bounds(map, r, c) {
 				return;
 			}
 
-			v_matrix[(x - x1 + 10) as usize][(y - y1 + 20) as usize] = map[x as usize][y as usize];
+			v_matrix[(r - r1 + 10) as usize][(c - c1 + 20) as usize] = map[r as usize][c as usize];
 
-			if !map::is_clear(map[x as usize][y as usize]) {
+			if !map::is_clear(map[r as usize][c as usize]) {
 				return;
 			}
 		
 			// I want trees to not totally block light, but instead reduce visibility
-			if map::Tile::Tree == map[x as usize][y as usize] && !(x == x1 && y == y1) {
-				if y_step > 0 {
-					y_end -= 3;
+			if map::Tile::Tree == map[r as usize][c as usize] && !(r == r1 && c == c1) {
+				if c_step > 0 {
+					c_end -= 3;
 				} else {
-					y_end += 3;
+					c_end += 3;
 				}
 			}
 			
-			y += y_step;
-			error += delta_x;
+			c += c_step;
+			error += delta_r;
 			if error > criterion {
-				error -= delta_y;
-				x += x_step;
+				error -= delta_c;
+				r += r_step;
 			}
 		}
 	}
 }
 
-fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: &Font, state: &GameState) {
+fn draw_dungeon(map: &Vec<Vec<map::Tile>>, state: &GameState, ui_info: &mut UIInfo) {
 	// create a matrix of tiles to display, starting off with blanks and then we'll fill
 	// in the squares that are actually visible.
 	let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
@@ -201,16 +212,17 @@ fn draw_dungeon(dungeon: &Vec<Vec<map::Tile>>, canvas: &mut WindowCanvas, font: 
 			let actual_c: i32 = state.player_col as i32 + col;
 
 			mark_visible(state.player_row as i32, state.player_col as i32,
-				actual_r as i32, actual_c as i32, dungeon, &mut v_matrix);
+				actual_r as i32, actual_c as i32, map, &mut v_matrix);
 		}
 	}
 	
 	v_matrix[10][20] = map::Tile::Player;
-	canvas.fill_rect(Rect::new(0, 28, 49 * 14, 58 * 28));
+	ui_info.canvas.fill_rect(
+		Rect::new(0, ui_info.font_height as i32, ui_info.screen_width_px, ui_info.screen_height_px));
 
 	for row in 0..21 {
 		for col in 0..41 {
-			draw_sq(row, col, v_matrix[row][col], canvas, font);
+			draw_sq(row, col, v_matrix[row][col], ui_info);
 		}
 	}
 }
@@ -257,32 +269,33 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 	}
 }
 
-fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
+fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
-	//let font_path: &Path = Path::new("VeraMono.ttf");
 	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
     let font = ttf_context.load_font(font_path, 24)?;
 	let (font_width, font_height) = font.size_of_char(' ').unwrap();
-	let screen_width = 49 * font_width;
-	let screen_height = 22 * font_height;
-
-    let window = video_subsystem.window("RL Demo", screen_width, screen_height)
+	let screen_width_px = SCREEN_WIDTH * font_width;
+	let screen_height_px = SCREEN_HEIGHT * font_height;
+    let window = video_subsystem.window("RL Demo", screen_width_px, screen_height_px)
         .position_centered()
         .opengl()
         .build()
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-    canvas.set_draw_color(BLACK);
-    canvas.clear();
+	let mut ui_info = UIInfo { screen_width_px, screen_height_px, font_width, font_height, 
+		font: &font, canvas: &mut canvas };
+
+    ui_info.canvas.set_draw_color(BLACK);
+    ui_info.canvas.clear();
 
 	let mut state = GameState::new(0, 0);
 	loop {
-		let r = rand::thread_rng().gen_range(1, dungeon.len() - 1);
-		let c = rand::thread_rng().gen_range(1, dungeon.len() - 1);
-		match dungeon[r][c] {
+		let r = rand::thread_rng().gen_range(1, map.len() - 1);
+		let c = rand::thread_rng().gen_range(1, map.len() - 1);
+		match map[r][c] {
 			map::Tile::Water | map::Tile::Wall | map::Tile::DeepWater |
 			map::Tile::Mountain | map::Tile::SnowPeak => { continue; },
 			_ => {
@@ -294,9 +307,9 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 	}
 	
 	state.write_msg_buff("A roguelike demo...");
-	write_msg(&state, &mut canvas, &font);
-	draw_dungeon(dungeon, &mut canvas, &font, &state);
-	canvas.present();
+	write_msg(&state, &mut ui_info);
+	draw_dungeon(map, &state, &mut ui_info);
+	ui_info.canvas.present();
 
     'mainloop: loop {
 		let mut update = false;
@@ -306,35 +319,35 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
                 Event::Quit {..} |
 				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
 				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					do_move(&dungeon, &mut state, "W");
+					do_move(&map, &mut state, "W");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					do_move(&dungeon, &mut state, "S");
+					do_move(&map, &mut state, "S");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					do_move(&dungeon, &mut state, "N");
+					do_move(&map, &mut state, "N");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					do_move(&dungeon, &mut state, "E");
+					do_move(&map, &mut state, "E");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
-					do_move(&dungeon, &mut state, "NW");
+					do_move(&map, &mut state, "NW");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
-					do_move(&dungeon, &mut state, "NE");
+					do_move(&map, &mut state, "NE");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
-					do_move(&dungeon, &mut state, "SW");
+					do_move(&map, &mut state, "SW");
 					update = true;
 				},
 				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
-					do_move(&dungeon, &mut state, "SE");
+					do_move(&map, &mut state, "SE");
 					update = true;
 				},
                 _ => {}
@@ -342,9 +355,9 @@ fn run(dungeon: &Vec<Vec<map::Tile>>) -> Result<(), String> {
         }
 	
 		if update {
-			write_msg(&state, &mut canvas, &font);
-			draw_dungeon(dungeon, &mut canvas, &font, &state);
-			canvas.present();
+			write_msg(&state, &mut ui_info);
+			draw_dungeon(map, &state, &mut ui_info);
+			ui_info.canvas.present();
 		}
     }
 
