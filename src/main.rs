@@ -87,17 +87,28 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		loop {
 			for event in self.event_pump.poll_iter() {
 				match event {
-					Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
-					Event::Quit {..} |
-					Event::KeyDown {keycode: Some(Keycode::Q), ..} => { return Cmd::Exit },
-					Event::KeyDown {keycode: Some(Keycode::H), ..} => { return Cmd::MoveW },
-					Event::KeyDown {keycode: Some(Keycode::J), ..} => { return Cmd::MoveS },
-					Event::KeyDown {keycode: Some(Keycode::K), ..} => { return Cmd::MoveN },
-					Event::KeyDown {keycode: Some(Keycode::L), ..} => { return Cmd::MoveE },
-					Event::KeyDown {keycode: Some(Keycode::Y), ..} => { return Cmd::MoveNW },
-					Event::KeyDown {keycode: Some(Keycode::U), ..} => { return Cmd::MoveNE },
-					Event::KeyDown {keycode: Some(Keycode::B), ..} => { return Cmd::MoveSW },
-					Event::KeyDown {keycode: Some(Keycode::N), ..} => { return Cmd::MoveSE },
+					Event::KeyDown {keycode: Some(Keycode::Escape), ..} | Event::Quit {..} => { return Cmd::Exit },
+					Event::TextInput { text:val, .. } => {
+						if val == "Q" {
+							return Cmd::Exit;	
+						} else if val == "k" {
+							return Cmd::MoveN;
+						} else if val == "j" {
+							return Cmd::MoveS;
+						} else if val == "l" {
+							return Cmd::MoveE;
+						} else if val == "h" {
+							return Cmd::MoveW;
+						} else if val == "y" {
+							return Cmd::MoveNW;
+						} else if val == "u" {
+							return Cmd::MoveNE;
+						} else if val == "b" {
+							return Cmd::MoveSW;
+						} else if val == "n" {
+							return Cmd::MoveSE;
+						}
+					},
 					_ => { continue },
 				}
 			}
