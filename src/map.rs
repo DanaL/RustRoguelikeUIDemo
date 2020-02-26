@@ -183,7 +183,7 @@ pub fn generate_island(width: usize) -> Vec<Vec<Tile>> {
 	grid[width - 1][0] = rand::thread_rng().gen_range(0.0, 1.0);
 	grid[width - 1][width - 1] = rand::thread_rng().gen_range(0.0, 1.0);
 
-	let mut initial_scale = 1.0 / width as f32;
+	let initial_scale = 1.0 / width as f32;
 	diamond_sq(&mut grid, 0, 0, width, initial_scale);
 	smooth_map(&mut grid, width);
 	warp_to_island(&mut grid, width, 0.0);

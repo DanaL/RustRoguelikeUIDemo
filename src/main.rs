@@ -79,6 +79,11 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		Ok(gui)
 	}
 
+	fn clear_screen(&mut self) {
+		self.canvas.fill_rect(
+			Rect::new(0, self.font_height as i32, self.screen_width_px, self.screen_height_px));
+	}
+
 	fn draw(&mut self) {
 		self.canvas.present();
 	}
@@ -115,17 +120,49 @@ impl<'a, 'b> GameUI<'a, 'b> {
     	}
 	}
 
-	fn write_msg(&mut self, state: &GameState) -> Result<(), String> {
-		self.canvas.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height));
+	fn pause_for_more(&mut self) {
+		loop {
+			for event in self.event_pump.poll_iter() {
+				match event {
+					Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
+						Event::KeyDown {keycode: Some(Keycode::Space), ..} => return,
+					_ => continue,
+				}
+			}
+		}
+	}
 
-		let surface = self.font.render(&state.msg_buff)
+	fn write_line(&mut self, row: i32, line: &str) -> Result<(), String> {
+		let surface = self.font.render(line)
 			.blended(WHITE).map_err(|e| e.to_string())?;
 		let texture_creator = self.canvas.texture_creator();
 		let texture = texture_creator.create_texture_from_surface(&surface)
 			.map_err(|e| e.to_string())?;
-		let rect = Rect::new(0, 0, state.msg_buff.len() as u32 * self.font_width, self.font_height);
+		let rect = Rect::new(0, row * self.font_height as i32, line.len() as u32 * self.font_width, self.font_height);
 		self.canvas.copy(&texture, None, Some(rect))?;
-		
+
+		Ok(())
+	}
+
+	fn write_long_msg(&mut self, lines: &Vec<&str>) -> Result<(), String> {
+		self.clear_screen();		
+
+		let line_count = lines.len();
+		for row_num in 0..line_count {
+			self.write_line(row_num as i32, lines[row_num]);
+		}
+
+		self.write_line(line_count as i32, "");
+		self.write_line(line_count as i32 + 1, "-- Press space to continue --");
+		self.draw();
+		self.pause_for_more();
+	
+		Ok(())
+	}
+
+	fn write_msg(&mut self, state: &GameState) -> Result<(), String> {
+		self.canvas.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height));
+		self.write_line(0, &state.msg_buff);
 		Ok(())
 	}
 
@@ -175,9 +212,8 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		}
 		
 		v_matrix[10][20] = map::Tile::Player;
-		self.canvas.fill_rect(
-			Rect::new(0, self.font_height as i32, self.screen_width_px, self.screen_height_px));
 
+		self.clear_screen();
 		for row in 0..21 {
 			for col in 0..41 {
 				self.write_sq(row, col, v_matrix[row][col]);
@@ -356,6 +392,18 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 	}
 }
 
+fn show_intro(gui: &mut GameUI) -> Result<(), String> {
+	let mut lines = vec!["Welcome to a rogulike UI prototype!", ""];
+	lines.push("You can move around with vi-style keys and bump");
+	lines.push("into water and mountains.");
+	lines.push("");
+	lines.push("There are no monsters or anything yet, though!");
+
+	gui.write_long_msg(&lines);
+
+	Ok(())
+}
+
 fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
@@ -378,6 +426,8 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 			}
 		}
 	}
+
+	show_intro(&mut gui);
 	
 	state.write_msg_buff("A roguelike demo...");
 	gui.write_msg(&state);
