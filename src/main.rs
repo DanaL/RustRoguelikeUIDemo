@@ -27,6 +27,18 @@ static BLUE: Color = Color::RGBA(0, 0, 221, 255);
 static LIGHT_BLUE: Color = Color::RGBA(55, 198, 255, 255);
 static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
 
+enum Cmd {
+	Exit,
+	MoveN,
+	MoveS,
+	MoveE,
+	MoveW,
+	MoveNW,
+	MoveNE,
+	MoveSW,
+	MoveSE,
+}
+
 // I have literally zero clue why Rust wants two lifetime parameters
 // here for the Font ref but this shuts the compiler the hell up...
 struct GameUI<'a, 'b> {
@@ -69,6 +81,27 @@ impl<'a, 'b> GameUI<'a, 'b> {
 
 	fn draw(&mut self) {
 		self.canvas.present();
+	}
+
+	fn get_command(&mut self) -> Cmd {
+		loop {
+			for event in self.event_pump.poll_iter() {
+				match event {
+					Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
+					Event::Quit {..} |
+					Event::KeyDown {keycode: Some(Keycode::Q), ..} => { return Cmd::Exit },
+					Event::KeyDown {keycode: Some(Keycode::H), ..} => { return Cmd::MoveW },
+					Event::KeyDown {keycode: Some(Keycode::J), ..} => { return Cmd::MoveS },
+					Event::KeyDown {keycode: Some(Keycode::K), ..} => { return Cmd::MoveN },
+					Event::KeyDown {keycode: Some(Keycode::L), ..} => { return Cmd::MoveE },
+					Event::KeyDown {keycode: Some(Keycode::Y), ..} => { return Cmd::MoveNW },
+					Event::KeyDown {keycode: Some(Keycode::U), ..} => { return Cmd::MoveNE },
+					Event::KeyDown {keycode: Some(Keycode::B), ..} => { return Cmd::MoveSW },
+					Event::KeyDown {keycode: Some(Keycode::N), ..} => { return Cmd::MoveSE },
+					_ => { continue },
+				}
+			}
+    	}
 	}
 
 	fn write_msg(&mut self, state: &GameState) -> Result<(), String> {
@@ -342,45 +375,41 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 
     'mainloop: loop {
 		let mut update = false;
-        for event in gui.event_pump.poll_iter() {
-            match event {
-                Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
-                Event::Quit {..} |
-				Event::KeyDown {keycode: Some(Keycode::Q), ..} => break 'mainloop,
-				Event::KeyDown {keycode: Some(Keycode::H), ..} => {
-					do_move(&map, &mut state, "W");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::J), ..} => {
-					do_move(&map, &mut state, "S");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::K), ..} => {
-					do_move(&map, &mut state, "N");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::L), ..} => {
-					do_move(&map, &mut state, "E");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::Y), ..} => {
-					do_move(&map, &mut state, "NW");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::U), ..} => {
-					do_move(&map, &mut state, "NE");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::B), ..} => {
-					do_move(&map, &mut state, "SW");
-					update = true;
-				},
-				Event::KeyDown {keycode: Some(Keycode::N), ..} => {
-					do_move(&map, &mut state, "SE");
-					update = true;
-				},
-                _ => {}
-            }
+		let cmd = gui.get_command();
+		match cmd {
+			Cmd::Exit => break 'mainloop,
+			Cmd::MoveW => {
+				do_move(&map, &mut state, "W");
+				update = true;
+			},
+			Cmd::MoveS => {
+				do_move(&map, &mut state, "S");
+				update = true;
+			},
+			Cmd::MoveN => {
+				do_move(&map, &mut state, "N");
+				update = true;
+			},
+			Cmd::MoveE => {
+				do_move(&map, &mut state, "E");
+				update = true;
+			},
+			Cmd::MoveNW => {
+				do_move(&map, &mut state, "NW");
+				update = true;
+			},
+			Cmd::MoveNE => {
+				do_move(&map, &mut state, "NE");
+				update = true;
+			},
+			Cmd::MoveSW => {
+				do_move(&map, &mut state, "SW");
+				update = true;
+			},
+			Cmd::MoveSE => {
+				do_move(&map, &mut state, "SE");
+				update = true;
+			},
         }
 	
 		if update {
