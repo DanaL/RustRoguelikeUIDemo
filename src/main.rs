@@ -8,6 +8,7 @@ use rand::Rng;
 use std::path::Path;
 
 use sdl2::event::Event;
+use sdl2::EventPump;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
@@ -27,14 +28,119 @@ static LIGHT_BLUE: Color = Color::RGBA(55, 198, 255, 255);
 static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
 
 // I have literally zero clue why Rust wants two lifetime parameters
-// here but this shuts the compiler the hell up...
-struct UIInfo<'a, 'b> {
+// here for the Font ref but this shuts the compiler the hell up...
+struct GameUI<'a, 'b> {
 	screen_width_px: u32,
 	screen_height_px: u32,
 	font_width: u32,
 	font_height: u32,
 	font: &'a Font<'a, 'b>,
-	canvas: &'a mut WindowCanvas,
+	canvas: WindowCanvas,
+	event_pump: EventPump,
+}
+
+impl<'a, 'b> GameUI<'a, 'b> {
+	fn init(font: &'b Font) -> Result<GameUI<'a, 'b>, String> {
+		let (font_width, font_height) = font.size_of_char(' ').unwrap();
+		let screen_width_px = SCREEN_WIDTH * font_width;
+		let screen_height_px = SCREEN_HEIGHT * font_height;
+
+		let sdl_context = sdl2::init()?;
+		let video_subsystem = sdl_context.video()?;
+		let window = video_subsystem.window("RL Demo", screen_width_px, screen_height_px)
+			.position_centered()
+			.opengl()
+			.build()
+			.map_err(|e| e.to_string())?;
+
+		let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+		let mut gui = GameUI { 
+			screen_width_px, screen_height_px, 
+			font_width, font_height, 
+			font: font, canvas,
+			event_pump: sdl_context.event_pump().unwrap(), 
+		};
+
+		gui.canvas.set_draw_color(BLACK);
+		gui.canvas.clear();
+
+		Ok(gui)
+	}
+
+	fn draw(&mut self) {
+		self.canvas.present();
+	}
+
+	fn write_msg(&mut self, state: &GameState) -> Result<(), String> {
+		self.canvas.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height));
+
+		let surface = self.font.render(&state.msg_buff)
+			.blended(WHITE).map_err(|e| e.to_string())?;
+		let texture_creator = self.canvas.texture_creator();
+		let texture = texture_creator.create_texture_from_surface(&surface)
+			.map_err(|e| e.to_string())?;
+		let rect = Rect::new(0, 0, state.msg_buff.len() as u32 * self.font_width, self.font_height);
+		self.canvas.copy(&texture, None, Some(rect))?;
+		
+		Ok(())
+	}
+
+	fn write_sq(&mut self, r: usize, c: usize, tile: map::Tile) -> Result<(), String> {
+		let (ch, char_colour) = match tile {
+			map::Tile::Blank => (' ', BLACK),
+			map::Tile::Wall => ('#', GREY),
+			map::Tile::Tree => ('\u{03D9}', GREEN),
+			map::Tile::Dirt => ('.', BROWN),
+			map::Tile::Grass => ('\u{0316}', GREEN),
+			map::Tile::Player => ('@', WHITE),
+			map::Tile::Water => ('}', LIGHT_BLUE),
+			map::Tile::DeepWater => ('}', BLUE),
+			map::Tile::Sand => ('.', BEIGE),
+			map::Tile::Mountain => ('^', GREY),
+			map::Tile::SnowPeak => ('^', WHITE),
+		};
+
+		let surface = self.font.render_char(ch)
+			.blended(char_colour).map_err(|e| e.to_string())?;
+		let texture_creator = self.canvas.texture_creator();
+		let texture = texture_creator.create_texture_from_surface(&surface)
+			.map_err(|e| e.to_string())?;
+		let rect = Rect::new(c as i32 * self.font_width as i32, 
+			(r as i32 + 1) * self.font_height as i32, self.font_width, self.font_height);
+		self.canvas.copy(&texture, None, Some(rect))?;
+
+		Ok(())
+	}
+
+	fn write_map_to_screen(&mut self, map: &Vec<Vec<map::Tile>>, state: &GameState) {
+		// create a matrix of tiles to display, starting off with blanks and then we'll fill
+		// in the squares that are actually visible.
+		let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
+		for _ in 0..21 {
+			v_matrix.push(vec![map::Tile::Blank; 41]);
+		}
+
+		for row in -10..11 {
+			for col in -20..21 {
+				let actual_r: i32 = state.player_row as i32 + row;
+				let actual_c: i32 = state.player_col as i32 + col;
+
+				mark_visible(state.player_row as i32, state.player_col as i32,
+					actual_r as i32, actual_c as i32, map, &mut v_matrix);
+			}
+		}
+		
+		v_matrix[10][20] = map::Tile::Player;
+		self.canvas.fill_rect(
+			Rect::new(0, self.font_height as i32, self.screen_width_px, self.screen_height_px));
+
+		for row in 0..21 {
+			for col in 0..41 {
+				self.write_sq(row, col, v_matrix[row][col]);
+			}
+		}
+	}
+
 }
 
 struct GameState {
@@ -52,47 +158,13 @@ impl GameState {
 		self.msg_buff = String::from(msg);
 	}
 }
-
-fn write_msg(state: &GameState, ui_info: &mut UIInfo) -> Result<(), String> {
-	ui_info.canvas.fill_rect(Rect::new(0, 0, 29 * 14, 28));
-
-    let surface = ui_info.font.render(&state.msg_buff)
-        .blended(WHITE).map_err(|e| e.to_string())?;
-    let texture_creator = ui_info.canvas.texture_creator();
-    let texture = texture_creator.create_texture_from_surface(&surface)
-        .map_err(|e| e.to_string())?;
-	let rect = Rect::new(0, 0, state.msg_buff.len() as u32 * ui_info.font_width, ui_info.font_height);
-    ui_info.canvas.copy(&texture, None, Some(rect))?;
-	
-	Ok(())
-}
-
-fn draw_sq(r: usize, c: usize, tile: map::Tile, ui_info: &mut UIInfo) -> Result<(), String> {
-	let (ch, char_colour) = match tile {
-		map::Tile::Blank => (' ', BLACK),
-		map::Tile::Wall => ('#', GREY),
-		map::Tile::Tree => ('\u{03D9}', GREEN),
-		map::Tile::Dirt => ('.', BROWN),
-		map::Tile::Grass => ('\u{0316}', GREEN),
-		map::Tile::Player => ('@', WHITE),
-		map::Tile::Water => ('}', LIGHT_BLUE),
-		map::Tile::DeepWater => ('}', BLUE),
-		map::Tile::Sand => ('.', BEIGE),
-		map::Tile::Mountain => ('^', GREY),
-		map::Tile::SnowPeak => ('^', WHITE),
-	};
-
-	let surface = ui_info.font.render_char(ch)
-		.blended(char_colour).map_err(|e| e.to_string())?;
-	let texture_creator = ui_info.canvas.texture_creator();
-	let texture = texture_creator.create_texture_from_surface(&surface)
-		.map_err(|e| e.to_string())?;
-	let rect = Rect::new(c as i32 * ui_info.font_width as i32, 
-		(r as i32 + 1) * ui_info.font_height as i32, ui_info.font_width, ui_info.font_height);
-	ui_info.canvas.copy(&texture, None, Some(rect))?;
+/*
+fn write_screen(lines: Vec<String>, ui_info: &mut GameUI) -> Result<(), String> {
+	ui_info.canvas.fill_rect(Rect::new(0, 0, ui_info.screen_width_px, ui_info.screen_height_px);
 
 	Ok(())
 }
+*/
 
 // Using bresenham line casting to detect blocked squares. If a ray hits
 // a Wall before reaching target then we can't see it. Bresenham isn't 
@@ -198,35 +270,6 @@ fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &Vec<Vec<map::Tile>>,
 	}
 }
 
-fn draw_dungeon(map: &Vec<Vec<map::Tile>>, state: &GameState, ui_info: &mut UIInfo) {
-	// create a matrix of tiles to display, starting off with blanks and then we'll fill
-	// in the squares that are actually visible.
-	let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
-	for _ in 0..21 {
-		v_matrix.push(vec![map::Tile::Blank; 41]);
-	}
-
-	for row in -10..11 {
-		for col in -20..21 {
-			let actual_r: i32 = state.player_row as i32 + row;
-			let actual_c: i32 = state.player_col as i32 + col;
-
-			mark_visible(state.player_row as i32, state.player_col as i32,
-				actual_r as i32, actual_c as i32, map, &mut v_matrix);
-		}
-	}
-	
-	v_matrix[10][20] = map::Tile::Player;
-	ui_info.canvas.fill_rect(
-		Rect::new(0, ui_info.font_height as i32, ui_info.screen_width_px, ui_info.screen_height_px));
-
-	for row in 0..21 {
-		for col in 0..41 {
-			draw_sq(row, col, v_matrix[row][col], ui_info);
-		}
-	}
-}
-
 fn get_move_tuple(mv: &str) -> (i16, i16) {
 	let res: (i16, i16);
 
@@ -270,26 +313,12 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 }
 
 fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
-    let sdl_context = sdl2::init()?;
-    let video_subsystem = sdl_context.video()?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
     let font = ttf_context.load_font(font_path, 24)?;
-	let (font_width, font_height) = font.size_of_char(' ').unwrap();
-	let screen_width_px = SCREEN_WIDTH * font_width;
-	let screen_height_px = SCREEN_HEIGHT * font_height;
-    let window = video_subsystem.window("RL Demo", screen_width_px, screen_height_px)
-        .position_centered()
-        .opengl()
-        .build()
-        .map_err(|e| e.to_string())?;
 
-    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-	let mut ui_info = UIInfo { screen_width_px, screen_height_px, font_width, font_height, 
-		font: &font, canvas: &mut canvas };
+	let mut gui = GameUI::init(&font)?;
 
-    ui_info.canvas.set_draw_color(BLACK);
-    ui_info.canvas.clear();
 
 	let mut state = GameState::new(0, 0);
 	loop {
@@ -307,13 +336,13 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 	}
 	
 	state.write_msg_buff("A roguelike demo...");
-	write_msg(&state, &mut ui_info);
-	draw_dungeon(map, &state, &mut ui_info);
-	ui_info.canvas.present();
+	gui.write_msg(&state);
+	gui.write_map_to_screen(map, &state);
+	gui.draw();
 
     'mainloop: loop {
 		let mut update = false;
-        for event in sdl_context.event_pump()?.poll_iter() {
+        for event in gui.event_pump.poll_iter() {
             match event {
                 Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
                 Event::Quit {..} |
@@ -355,9 +384,9 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
         }
 	
 		if update {
-			write_msg(&state, &mut ui_info);
-			draw_dungeon(map, &state, &mut ui_info);
-			ui_info.canvas.present();
+			gui.write_msg(&state);
+			gui.write_map_to_screen(map, &state);
+			gui.draw();
 		}
     }
 
