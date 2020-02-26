@@ -47,15 +47,20 @@ struct GameUI<'a, 'b> {
 	font_width: u32,
 	font_height: u32,
 	font: &'a Font<'a, 'b>,
+	sm_font_width: u32,
+	sm_font_height: u32,
+	sm_font: &'a Font<'a, 'b>,
 	canvas: WindowCanvas,
 	event_pump: EventPump,
 }
 
 impl<'a, 'b> GameUI<'a, 'b> {
-	fn init(font: &'b Font) -> Result<GameUI<'a, 'b>, String> {
+	fn init(font: &'b Font, sm_font: &'b Font) -> Result<GameUI<'a, 'b>, String> {
 		let (font_width, font_height) = font.size_of_char(' ').unwrap();
 		let screen_width_px = SCREEN_WIDTH * font_width;
 		let screen_height_px = SCREEN_HEIGHT * font_height;
+
+		let (sm_font_width, sm_font_height) = sm_font.size_of_char(' ').unwrap();
 
 		let sdl_context = sdl2::init()?;
 		let video_subsystem = sdl_context.video()?;
@@ -68,9 +73,10 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 		let mut gui = GameUI { 
 			screen_width_px, screen_height_px, 
-			font_width, font_height, 
-			font: font, canvas,
-			event_pump: sdl_context.event_pump().unwrap(), 
+			font, font_width, font_height, 
+			canvas,
+			event_pump: sdl_context.event_pump().unwrap(),
+			sm_font, sm_font_width, sm_font_height,
 		};
 
 		gui.canvas.set_draw_color(BLACK);
@@ -81,7 +87,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 
 	fn clear_screen(&mut self) {
 		self.canvas.fill_rect(
-			Rect::new(0, self.font_height as i32, self.screen_width_px, self.screen_height_px));
+			Rect::new(0, 0, self.screen_width_px, self.screen_height_px));
 	}
 
 	fn draw(&mut self) {
@@ -123,6 +129,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	fn pause_for_more(&mut self) {
 		loop {
 			for event in self.event_pump.poll_iter() {
+				// I need to handle a Quit/Exit event here	
 				match event {
 					Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
 						Event::KeyDown {keycode: Some(Keycode::Space), ..} => return,
@@ -132,28 +139,60 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		}
 	}
 
-	fn write_line(&mut self, row: i32, line: &str) -> Result<(), String> {
-		let surface = self.font.render(line)
+	fn write_line(&mut self, row: i32, line: &str, small_font: bool) -> Result<(), String> {
+		let fw: u32;
+		let fh: u32;	
+		let f: &Font;
+
+		if small_font {
+			f = self.sm_font;
+			fw = self.sm_font_width;
+			fh = self.sm_font_height;
+		} else {
+			f = self.font;
+			fw = self.font_width;
+			fh = self.font_height;
+		}
+
+		let surface = f.render(line)
 			.blended(WHITE).map_err(|e| e.to_string())?;
 		let texture_creator = self.canvas.texture_creator();
 		let texture = texture_creator.create_texture_from_surface(&surface)
 			.map_err(|e| e.to_string())?;
-		let rect = Rect::new(0, row * self.font_height as i32, line.len() as u32 * self.font_width, self.font_height);
+		let rect = Rect::new(0, row * fh as i32, line.len() as u32 * fw, fh);
 		self.canvas.copy(&texture, None, Some(rect))?;
 
 		Ok(())
 	}
 
-	fn write_long_msg(&mut self, lines: &Vec<&str>) -> Result<(), String> {
+	// What I should do here but am not is make sure each line will fit on the
+	// screen without being cut off. For the moment, I just gotta make sure any
+	// lines don't have too many characterse. Something for a post 7DRL world
+	// I guess.
+	fn write_long_msg(&mut self, lines: &Vec<String>) -> Result<(), String> {
 		self.clear_screen();		
-
+		
+		let display_lines = (self.screen_height_px / self.sm_font_height) as usize;
 		let line_count = lines.len();
-		for row_num in 0..line_count {
-			self.write_line(row_num as i32, lines[row_num]);
+		let mut curr_line = 0;
+		let mut curr_row = 0;
+		while curr_line < line_count {
+			self.write_line(curr_row as i32, &lines[curr_line], true);
+			curr_line += 1;
+			curr_row += 1;
+
+			if curr_row == display_lines - 2 && curr_line < line_count {
+				self.write_line(curr_row as i32, "", true);
+				self.write_line(curr_row as i32 + 1, "-- Press space to continue --", true);
+				self.draw();
+				self.pause_for_more();
+				curr_row = 0;
+				self.clear_screen();		
+			}
 		}
 
-		self.write_line(line_count as i32, "");
-		self.write_line(line_count as i32 + 1, "-- Press space to continue --");
+		self.write_line(curr_row as i32, "", true);
+		self.write_line(curr_row as i32 + 1, "-- Press space to continue --", true);
 		self.draw();
 		self.pause_for_more();
 	
@@ -162,7 +201,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 
 	fn write_msg(&mut self, state: &GameState) -> Result<(), String> {
 		self.canvas.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height));
-		self.write_line(0, &state.msg_buff);
+		self.write_line(0, &state.msg_buff, false);
 		Ok(())
 	}
 
@@ -393,12 +432,12 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 }
 
 fn show_intro(gui: &mut GameUI) -> Result<(), String> {
-	let mut lines = vec!["Welcome to a rogulike UI prototype!", ""];
-	lines.push("You can move around with vi-style keys and bump");
-	lines.push("into water and mountains.");
-	lines.push("");
-	lines.push("There are no monsters or anything yet, though!");
-
+	let mut lines = vec!["Welcome to a rogulike UI prototype!".to_string(), "".to_string()];
+	lines.push("You can move around with vi-style keys and bump".to_string());
+	lines.push("into water and mountains.".to_string());
+	lines.push("".to_string());
+	lines.push("There are no monsters or anything yet, though!".to_string());
+	
 	gui.write_long_msg(&lines);
 
 	Ok(())
@@ -408,8 +447,9 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
     let font = ttf_context.load_font(font_path, 24)?;
+	let sm_font = ttf_context.load_font(font_path, 18)?;
 
-	let mut gui = GameUI::init(&font)?;
+	let mut gui = GameUI::init(&font, &sm_font)?;
 
 
 	let mut state = GameState::new(0, 0);
@@ -429,7 +469,7 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 
 	show_intro(&mut gui);
 	
-	state.write_msg_buff("A roguelike demo...");
+	state.write_msg_buff("Welcome!");
 	gui.write_msg(&state);
 	gui.write_map_to_screen(map, &state);
 	gui.draw();
