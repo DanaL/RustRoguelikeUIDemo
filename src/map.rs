@@ -199,3 +199,50 @@ pub fn generate_island(width: usize) -> Vec<Vec<Tile>> {
 
 	map
 }
+
+pub fn generate_test_map() -> Vec<Vec<Tile>> {
+	let mut map: Vec<Vec<Tile>> = Vec::new();
+
+	let mut row = Vec::new();
+	for r in 0..11 {
+		row.push(Tile::Wall);
+	}
+	map.push(row);
+
+	for r in 0..9 {
+		let mut row = Vec::new();
+		row.push(Tile::Wall);
+		for c in 0..9 {
+			row.push(Tile::Dirt);
+		}
+		row.push(Tile::Wall);
+		map.push(row);
+	}
+
+	let mut row = Vec::new();
+	for r in 0..11 {
+		row.push(Tile::Wall);
+	}
+	map.push(row);
+
+	map[8][9] = Tile::Wall;
+	map[8][8] = Tile::Wall;
+	map[8][7] = Tile::Wall;
+
+	map[2][7] = Tile::Wall;
+
+	map[6][3] = Tile::Wall;
+	map[6][5] = Tile::Wall;
+
+	map[5][3] = Tile::Wall;
+	map[5][5] = Tile::Wall;
+
+	map[4][3] = Tile::Wall;
+	map[4][5] = Tile::Wall;
+
+	map[3][3] = Tile::Wall;
+	map[3][4] = Tile::Wall;
+	map[3][5] = Tile::Wall;
+
+	map
+}

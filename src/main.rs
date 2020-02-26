@@ -2,6 +2,7 @@ extern crate rand;
 extern crate sdl2;
 
 mod map;
+mod pathfinding;
 
 use rand::Rng;
 
@@ -524,7 +525,10 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let map = map::generate_island(65);
+	//let map = map::generate_island(65);
+	let map = map::generate_test_map();
+
+	pathfinding::find_path(&map, 4, 5, 16, 17);
 	run(&map)?;
 
     Ok(())
