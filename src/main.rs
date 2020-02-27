@@ -219,6 +219,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			map::Tile::Sand => ('.', BEIGE),
 			map::Tile::Mountain => ('^', GREY),
 			map::Tile::SnowPeak => ('^', WHITE),
+			map::Tile::Gate => ('#', LIGHT_BLUE),
 		};
 
 		let surface = self.font.render_char(ch)
@@ -528,7 +529,8 @@ fn main() -> Result<(), String> {
 	//let map = map::generate_island(65);
 	let map = map::generate_test_map();
 
-	pathfinding::find_path(&map, 4, 5, 16, 17);
+	let path = pathfinding::find_path(&map, 4, 4, 9, 9);
+	println!("{:?}", path);
 	run(&map)?;
 
     Ok(())

@@ -16,6 +16,7 @@ pub enum Tile {
 	Sand,
 	Mountain,
 	SnowPeak,
+	Gate,
 }
 
 pub fn in_bounds(map: &Vec<Vec<Tile>>, r: i32, c: i32) -> bool {
@@ -33,7 +34,7 @@ pub fn is_clear(tile: Tile) -> bool {
 pub fn is_passable(tile: Tile) -> bool {
 	match tile {
 		Tile::DeepWater | Tile::Wall | Tile::Blank |
-		Tile::Mountain | Tile::SnowPeak => false,
+		Tile::Mountain | Tile::SnowPeak | Tile::Gate => false,
 		_ => true,
 	}
 }
@@ -228,6 +229,8 @@ pub fn generate_test_map() -> Vec<Vec<Tile>> {
 	map[8][9] = Tile::Wall;
 	map[8][8] = Tile::Wall;
 	map[8][7] = Tile::Wall;
+
+	map[9][7] = Tile::Gate;
 
 	map[2][7] = Tile::Wall;
 
