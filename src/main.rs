@@ -86,9 +86,14 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		Ok(gui)
 	}
 
-	fn clear_screen(&mut self) {
+	fn clear_screen(&mut self, clear_msg_line: bool) {
+		let mut start_px = 0;
+  		if !clear_msg_line {
+			start_px = self.font_height as i32;
+		}
+
 		self.canvas.fill_rect(
-			Rect::new(0, 0, self.screen_width_px, self.screen_height_px));
+			Rect::new(0, start_px, self.screen_width_px, self.screen_height_px));
 	}
 
 	fn draw(&mut self) {
@@ -171,7 +176,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	// lines don't have too many characterse. Something for a post 7DRL world
 	// I guess.
 	fn write_long_msg(&mut self, lines: &Vec<String>) -> Result<(), String> {
-		self.clear_screen();		
+		self.clear_screen(true);		
 		
 		let display_lines = (self.screen_height_px / self.sm_font_height) as usize;
 		let line_count = lines.len();
@@ -188,7 +193,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 				self.draw();
 				self.pause_for_more();
 				curr_row = 0;
-				self.clear_screen();		
+				self.clear_screen(true);		
 			}
 		}
 
@@ -254,7 +259,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		
 		v_matrix[10][20] = map::Tile::Player;
 
-		self.clear_screen();
+		self.clear_screen(false);
 		for row in 0..21 {
 			for col in 0..41 {
 				self.write_sq(row, col, v_matrix[row][col]);
@@ -423,7 +428,12 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 	if map::is_passable(tile) {
 		state.player_col = next_col as usize;
 		state.player_row = next_row as usize;
-		state.write_msg_buff("");
+
+		if tile == map::Tile::Water {
+			state.write_msg_buff("You splash in the shallow water.");
+		} else {
+			state.write_msg_buff("");
+		}
 	} else  {
 		if tile == map::Tile::DeepWater {
 			state.write_msg_buff("You cannot swim!");
@@ -526,11 +536,11 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	//let map = map::generate_island(65);
-	let map = map::generate_test_map();
+	let map = map::generate_island(65);
+	//let map = map::generate_test_map();
 
-	let path = pathfinding::find_path(&map, 4, 4, 9, 9);
-	println!("{:?}", path);
+	//let path = pathfinding::find_path(&map, 4, 4, 9, 9);
+	//println!("{:?}", path);
 	run(&map)?;
 
     Ok(())
