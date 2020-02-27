@@ -61,7 +61,7 @@ fn get_path_from_nodes(nodes: &HashMap<(usize, usize), ASNode>,
 	let mut cr = er;
 	let mut cc = ec;
 
-	while (cr != sr || cc != sc) {
+	while cr != sr || cc != sc {
 		path.push((cr, cc));
 		let n = &nodes[&(cr, cc)];
 		cr = n.parent.0;

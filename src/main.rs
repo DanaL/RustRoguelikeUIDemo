@@ -6,16 +6,19 @@ mod pathfinding;
 
 use rand::Rng;
 
+use std::collections::VecDeque;
 use std::path::Path;
 
 use sdl2::event::Event;
 use sdl2::EventPump;
+use sdl2::keyboard::Mod;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::ttf::Font;
 use sdl2::pixels::Color;
 
+const MSG_HISTORY_LENGTH: usize = 50;
 const SCREEN_WIDTH: u32 = 49;
 const SCREEN_HEIGHT: u32 = 22;
 
@@ -38,6 +41,7 @@ enum Cmd {
 	MoveNE,
 	MoveSW,
 	MoveSE,
+	MsgHistory,
 }
 
 // I have literally zero clue why Rust wants two lifetime parameters
@@ -103,8 +107,11 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	fn get_command(&mut self) -> Cmd {
 		loop {
 			for event in self.event_pump.poll_iter() {
+				//println!("{:?}", event);
 				match event {
 					Event::KeyDown {keycode: Some(Keycode::Escape), ..} | Event::Quit {..} => { return Cmd::Exit },
+					Event::KeyDown {keycode: Some(Keycode::H), keymod: Mod::LCTRLMOD, .. } |
+					Event::KeyDown {keycode: Some(Keycode::H), keymod: Mod::RCTRLMOD, .. } => { return Cmd::MsgHistory; },
 					Event::TextInput { text:val, .. } => {
 						if val == "Q" {
 							return Cmd::Exit;	
@@ -273,24 +280,31 @@ struct GameState {
 	player_row: usize,
 	player_col: usize,
 	msg_buff: String,
+	msg_history: VecDeque<(String, u32)>,
 }
 
 impl GameState {
 	fn new(r: usize, c: usize) -> GameState {
-		GameState {player_row: r, player_col: c, msg_buff: String::from("") }
+		GameState {player_row: r, player_col: c, msg_buff: String::from(""),
+			msg_history: VecDeque::new() }
 	}
 
 	fn write_msg_buff(&mut self, msg: &str) {
 		self.msg_buff = String::from(msg);
+
+		if msg.len() > 0 {
+			if self.msg_history.len() == 0 || msg != self.msg_history[0].0 {
+				self.msg_history.push_front((String::from(msg), 1));
+			} else {
+				self.msg_history[0].1 += 1;
+			}
+
+			if self.msg_history.len() > MSG_HISTORY_LENGTH {
+				self.msg_history.pop_back();
+			}
+		}
 	}
 }
-/*
-fn write_screen(lines: Vec<String>, ui_info: &mut GameUI) -> Result<(), String> {
-	ui_info.canvas.fill_rect(Rect::new(0, 0, ui_info.screen_width_px, ui_info.screen_height_px);
-
-	Ok(())
-}
-*/
 
 // Using bresenham line casting to detect blocked squares. If a ray hits
 // a Wall before reaching target then we can't see it. Bresenham isn't 
@@ -443,6 +457,22 @@ fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
 	}
 }
 
+fn show_message_history(state: &GameState, gui: &mut GameUI) {
+	let mut lines = Vec::new();
+	lines.push("".to_string());
+	for j in 0..state.msg_history.len() {
+		let mut s = state.msg_history[j].0.to_string();
+		if state.msg_history[j].1 > 1 {
+			s.push_str(" (x");
+			s.push_str(&state.msg_history[j].1.to_string());
+			s.push_str(")");
+		}
+		lines.push(s);
+	}
+
+	gui.write_long_msg(&lines);
+}
+
 fn show_intro(gui: &mut GameUI) -> Result<(), String> {
 	let mut lines = vec!["Welcome to a rogulike UI prototype!".to_string(), "".to_string()];
 	lines.push("You can move around with vi-style keys and bump".to_string());
@@ -521,6 +551,10 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 			},
 			Cmd::MoveSE => {
 				do_move(&map, &mut state, "SE");
+				update = true;
+			},
+			Cmd::MsgHistory => {
+				show_message_history(&state, &mut gui);
 				update = true;
 			},
         }
