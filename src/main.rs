@@ -229,6 +229,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			map::Tile::Water => ('}', LIGHT_BLUE),
 			map::Tile::DeepWater => ('}', BLUE),
 			map::Tile::Sand => ('.', BEIGE),
+			map::Tile::StoneFloor => ('.', GREY),
 			map::Tile::Mountain => ('^', GREY),
 			map::Tile::SnowPeak => ('^', WHITE),
 			map::Tile::Gate => ('#', LIGHT_BLUE),
@@ -572,10 +573,10 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 fn main() -> Result<(), String> {
 	let map = map::generate_island(65);
 	//let map = map::generate_test_map();
-
+	map::generate_cave(40, 20);
 	//let path = pathfinding::find_path(&map, 4, 4, 9, 9);
 	//println!("{:?}", path);
-	run(&map)?;
+	//run(&map)?;
 
     Ok(())
 }
