@@ -217,36 +217,66 @@ fn dump_cave(grid: &Vec<Vec<bool>>) {
 	}
 }
 
-type DisjointSet = HashMap<(usize, usize), ((usize, usize), u32)>;
+fn ds_union(ds: &mut Vec<i32>, r1: i32, r2: i32) {
+	let x = ds_find(ds, r1);
+	let y = ds_find(ds, r2);
 
-fn ds_find(ds: &mut DisjointSet, n: (usize, usize)) -> ((usize, usize), u32) {
-	if !ds.contains_key(&n) {
-		ds.insert((n.0, n.1), ((n.0, n.1), 1));
+	if x != y {
+		ds[y as usize] = x;
 	}
-
-	let res = ds.get(&n).unwrap();
-
-	res.clone()
 }
 
-fn ds_union(ds: &mut DisjointSet, n1: (usize, usize), n2: (usize, usize)) {
-	let s1 = ds_find(ds, n1);
-	let s2 = ds_find(ds, n2);
-
-	if s1.1 > s2.1 {
-		let nv1 = ds.get_mut(&s1.0).unwrap();
-		nv1.1 += s2.1;
-
-		let nv2 = ds.get_mut(&s2.0).unwrap();
-		nv2.0 = (n1.0, n1.1);
-		nv2.1 = nv1.1;
+fn ds_find(ds: &mut Vec<i32>, x: i32) -> i32 {
+	if ds[x as usize] < 0 {
+		x
 	} else {
-		let nv1 = ds.get_mut(&s2.0).unwrap();
-		nv1.1 += s1.1;
+		ds_find(ds, ds[x as usize])
+	}
+}
 
-		let nv2 = ds.get_mut(&s1.0).unwrap();
-		nv2.0 = (n2.0, n2.1);
-		nv2.1 = nv1.1;
+fn find_isolated_caves(grid: &Vec<Vec<bool>>, width: usize, depth: usize) -> Vec<i32> {
+	let mut ds: Vec<i32> = vec![-1; width * depth];
+
+	// Run through the grid and union and adjacent floors
+	for r in 1..depth - 1 {
+		for c in 1..width - 1 {
+			if grid[r][c] { continue; }
+			let v = (r * width + c) as i32;
+		
+			if !grid[r - 1][c] { ds_union(&mut ds, v, v - width as i32); }
+			if !grid[r + 1][c] { ds_union(&mut ds, v, v + width as i32); }
+			if !grid[r][c - 1] { ds_union(&mut ds, v, v - 1); }
+			if !grid[r][c + 1] { ds_union(&mut ds, v, v + 1); }
+		}
+	}
+
+	ds
+}
+
+fn find_sets(grid: &Vec<Vec<bool>>, ds: &mut Vec<i32>, width: usize, depth: usize) -> HashMap<i32, i32> {
+	let mut sets: HashMap<i32, i32> = HashMap::new();
+	for r in 1..depth - 1 {
+		for c in 1..width - 1 {
+			if grid[r][c] { continue; }
+			let v = (r * width + c) as i32;
+			let root = ds_find(ds, v);
+			let set = sets.entry(root).or_insert(0);
+			*set += 1;
+		}
+	}
+
+	sets
+}
+
+// To join caves, draw lines from a point in one cave toward the centre of the maze.
+// If we reach a floor and it is in a different set, we can stop. Or we stop when we 
+// reach the centre.
+fn join_rooms(grid: &mut Vec<Vec<bool>>, ds: &Vec<i32>, sets: &HashMap<i32, i32>, width: usize, depth: usize) {
+	for set in sets {
+		let v = *set.0;
+		let row = v as usize / width;
+		let col = v as usize % width;
+		println!("{} -> {} {} ({})", v, row, col, set.1);
 	}
 }
 
@@ -259,16 +289,28 @@ fn ds_union(ds: &mut DisjointSet, n1: (usize, usize), n2: (usize, usize)) {
 // 
 // To group then together, I'm going to use a disjoint set ADT.
 fn cave_qa(grid: &mut Vec<Vec<bool>>, width: usize, depth: usize) {
-	let mut ds: DisjointSet = HashMap::new();
+	let mut ds = find_isolated_caves(grid, width, depth);
+	let mut sets = find_sets(grid, &mut ds, width, depth);
 
+	// Fill in any caves of size 3 or less
 	for r in 1..depth - 1 {
 		for c in 1..width - 1 {
 			if grid[r][c] { continue; }
-
-			let f = ds_find(&mut ds, (r, c));
-			println!("{:?}", f);
+			let v = (r * width + c) as i32;
+					
+			let root = ds_find(&mut ds, v);
+			if sets[&root] < 4 {
+				grid[r][c] = true;
+			}
 		}
 	}
+	
+	let mut ds = find_isolated_caves(grid, width, depth);
+	let mut sets = find_sets(grid, &mut ds, width, depth);
+	for set in sets {
+		println!("{:?}", set);
+	}
+	//join_rooms(grid, &ds, &sets, width, depth);
 }
 
 fn count_neighbouring_walls(grid: &Vec<Vec<bool>>, row: i32, col: i32, width: i32, depth: i32) -> u32 {
@@ -337,6 +379,7 @@ pub fn generate_cave(width: usize, depth: usize) {
 		next_gen[r][width - 1] = true;
 	}
 
+	dump_cave(&next_gen);
 	cave_qa(&mut next_gen, width, depth);
 	dump_cave(&next_gen);
 }
