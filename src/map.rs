@@ -323,7 +323,7 @@ fn cave_qa(grid: &mut Vec<Vec<bool>>, width: usize, depth: usize) {
 		}
 	}
 
-	let mut sets = find_sets(grid, &mut ds, width, depth);
+	let sets = find_sets(grid, &mut ds, width, depth);
 	let mut largest_set = 0;
 	let mut largest_count = 0;
 	for s in sets {
@@ -382,8 +382,7 @@ pub fn generate_cave(width: usize, depth: usize) -> Vec<Vec<Tile>> {
 	// we leave it alone.
 	//
 	// One generation seems to generate nice enough maps!
-	let mut next_gen: Vec<Vec<bool>> = Vec::new();
-	next_gen = vec![vec![false; width]; depth];
+	let mut next_gen = vec![vec![false; width]; depth];
 	for r in 1..depth - 1 {
 		for c in 1..width - 1 {
 			let adj_walls = count_neighbouring_walls(&grid, r as i32, c as i32, width as i32, depth as i32);
@@ -397,8 +396,6 @@ pub fn generate_cave(width: usize, depth: usize) -> Vec<Vec<Tile>> {
 			}
 		}
 	}
-
-	grid = next_gen.clone();
 
 	// set the border
 	for c in 0..width {
@@ -426,54 +423,5 @@ pub fn generate_cave(width: usize, depth: usize) -> Vec<Vec<Tile>> {
 		map.push(row);
 	}
 	
-	map
-}
-
-pub fn generate_test_map() -> Vec<Vec<Tile>> {
-	let mut map: Vec<Vec<Tile>> = Vec::new();
-
-	let mut row = Vec::new();
-	for r in 0..11 {
-		row.push(Tile::Wall);
-	}
-	map.push(row);
-
-	for r in 0..9 {
-		let mut row = Vec::new();
-		row.push(Tile::Wall);
-		for c in 0..9 {
-			row.push(Tile::Dirt);
-		}
-		row.push(Tile::Wall);
-		map.push(row);
-	}
-
-	let mut row = Vec::new();
-	for r in 0..11 {
-		row.push(Tile::Wall);
-	}
-	map.push(row);
-
-	map[8][9] = Tile::Wall;
-	map[8][8] = Tile::Wall;
-	map[8][7] = Tile::Wall;
-
-	map[9][7] = Tile::Gate;
-
-	map[2][7] = Tile::Wall;
-
-	map[6][3] = Tile::Wall;
-	map[6][5] = Tile::Wall;
-
-	map[5][3] = Tile::Wall;
-	map[5][5] = Tile::Wall;
-
-	map[4][3] = Tile::Wall;
-	map[4][5] = Tile::Wall;
-
-	map[3][3] = Tile::Wall;
-	map[3][4] = Tile::Wall;
-	map[3][5] = Tile::Wall;
-
 	map
 }

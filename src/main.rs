@@ -1,7 +1,9 @@
 extern crate rand;
 extern crate sdl2;
 
+#[allow(dead_code)]
 mod map;
+#[allow(dead_code)]
 mod pathfinding;
 
 use rand::Rng;
@@ -77,7 +79,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			.build()
 			.map_err(|e| e.to_string())?;
 
-		let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+		let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 		let mut gui = GameUI { 
 			screen_width_px, screen_height_px, 
 			font, font_width, font_height, 
@@ -99,7 +101,8 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		}
 
 		self.canvas.fill_rect(
-			Rect::new(0, start_px, self.screen_width_px, self.screen_height_px));
+			Rect::new(0, start_px, self.screen_width_px, self.screen_height_px)
+		).expect("Error writing rect to clear the screen!");
 	}
 
 	fn draw(&mut self) {
@@ -154,7 +157,11 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		}
 	}
 
-	fn write_line(&mut self, row: i32, line: &str, small_font: bool) -> Result<(), String> {
+	fn write_line(&mut self, row: i32, line: &str, small_font: bool) {
+		if line.len() == 0 {
+			return;
+		}
+
 		let fw: u32;
 		let fh: u32;	
 		let f: &Font;
@@ -170,21 +177,21 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		}
 
 		let surface = f.render(line)
-			.blended(WHITE).map_err(|e| e.to_string())?;
+			.blended(WHITE)
+			.expect("Error rendering message line!");
 		let texture_creator = self.canvas.texture_creator();
 		let texture = texture_creator.create_texture_from_surface(&surface)
-			.map_err(|e| e.to_string())?;
+			.expect("Error create texture for messsage line!");
 		let rect = Rect::new(0, row * fh as i32, line.len() as u32 * fw, fh);
-		self.canvas.copy(&texture, None, Some(rect))?;
-
-		Ok(())
+		self.canvas.copy(&texture, None, Some(rect))
+			.expect("Error copying message line texture to canvas!");
 	}
 
 	// What I should do here but am not is make sure each line will fit on the
 	// screen without being cut off. For the moment, I just gotta make sure any
 	// lines don't have too many characterse. Something for a post 7DRL world
 	// I guess.
-	fn write_long_msg(&mut self, lines: &Vec<String>) -> Result<(), String> {
+	fn write_long_msg(&mut self, lines: &Vec<String>) {
 		self.clear_screen(true);		
 		
 		let display_lines = (self.screen_height_px / self.sm_font_height) as usize;
@@ -210,17 +217,16 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		self.write_line(curr_row as i32 + 1, "-- Press space to continue --", true);
 		self.draw();
 		self.pause_for_more();
-	
-		Ok(())
 	}
 
-	fn write_msg(&mut self, state: &GameState) -> Result<(), String> {
-		self.canvas.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height));
+	fn write_msg(&mut self, state: &GameState) {
+		self.canvas
+			.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height))
+			.expect("Error clearing message line!");
 		self.write_line(0, &state.msg_buff, false);
-		Ok(())
 	}
 
-	fn write_sq(&mut self, r: usize, c: usize, tile: map::Tile) -> Result<(), String> {
+	fn write_sq(&mut self, r: usize, c: usize, tile: map::Tile) {
 		let (ch, char_colour) = match tile {
 			map::Tile::Blank => (' ', BLACK),
 			map::Tile::Wall => ('#', GREY),
@@ -238,15 +244,15 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		};
 
 		let surface = self.font.render_char(ch)
-			.blended(char_colour).map_err(|e| e.to_string())?;
+			.blended(char_colour)
+			.expect("Error creating character!");  
 		let texture_creator = self.canvas.texture_creator();
 		let texture = texture_creator.create_texture_from_surface(&surface)
-			.map_err(|e| e.to_string())?;
+			.expect("Error creating texture!");
 		let rect = Rect::new(c as i32 * self.font_width as i32, 
 			(r as i32 + 1) * self.font_height as i32, self.font_width, self.font_height);
-		self.canvas.copy(&texture, None, Some(rect))?;
-
-		Ok(())
+		self.canvas.copy(&texture, None, Some(rect))
+			.expect("Error copying to canvas!");
 	}
 
 	fn write_view_to_screen(&mut self, map: &Vec<Vec<map::Tile>>, state: &GameState) {
@@ -281,7 +287,6 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			}
 		}
 	}
-
 }
 
 struct GameState {
@@ -481,7 +486,7 @@ fn show_message_history(state: &GameState, gui: &mut GameUI) {
 	gui.write_long_msg(&lines);
 }
 
-fn show_intro(gui: &mut GameUI) -> Result<(), String> {
+fn show_intro(gui: &mut GameUI) {
 	let mut lines = vec!["Welcome to a rogulike UI prototype!".to_string(), "".to_string()];
 	lines.push("You can move around with vi-style keys and bump".to_string());
 	lines.push("into water and mountains.".to_string());
@@ -489,18 +494,18 @@ fn show_intro(gui: &mut GameUI) -> Result<(), String> {
 	lines.push("There are no monsters or anything yet, though!".to_string());
 	
 	gui.write_long_msg(&lines);
-
-	Ok(())
 }
 
-fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
-    let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
+fn run(map: &Vec<Vec<map::Tile>>) {
+    let ttf_context = sdl2::ttf::init()
+		.expect("Error creating ttf context on start-up!");
 	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
-    let font = ttf_context.load_font(font_path, 24)?;
-	let sm_font = ttf_context.load_font(font_path, 18)?;
-
-	let mut gui = GameUI::init(&font, &sm_font)?;
-
+    let font = ttf_context.load_font(font_path, 24)
+		.expect("Error loading game font!");
+	let sm_font = ttf_context.load_font(font_path, 18)
+		.expect("Error loading small game font!");
+	let mut gui = GameUI::init(&font, &sm_font)
+		.expect("Error initializing GameUI object.");
 
 	let mut state = GameState::new(0, 0);
 	loop {
@@ -573,17 +578,12 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 			gui.draw();
 		}
     }
-
-    Ok(())
 }
 
-fn main() -> Result<(), String> {
-	//let map = map::generate_island(65);
-	//let map = map::generate_test_map();
-	let map = map::generate_cave(20, 10);
+fn main() {
+	let map = map::generate_island(65);
+	//let map = map::generate_cave(20, 10);
 	//let path = pathfinding::find_path(&map, 4, 4, 9, 9);
-	//println!("{:?}", path);
-	run(&map)?;
-
-    Ok(())
+	
+	run(&map);
 }
