@@ -21,6 +21,8 @@ use sdl2::pixels::Color;
 const MSG_HISTORY_LENGTH: usize = 50;
 const SCREEN_WIDTH: u32 = 49;
 const SCREEN_HEIGHT: u32 = 22;
+const FOV_WIDTH: usize = 41;
+const FOV_HEIGHT: usize = 21;
 
 static BLACK: Color = Color::RGBA(0, 0, 0, 255);
 static WHITE: Color = Color::RGBA(255, 255, 255, 255);
@@ -247,29 +249,36 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		Ok(())
 	}
 
-	fn write_map_to_screen(&mut self, map: &Vec<Vec<map::Tile>>, state: &GameState) {
+	fn write_view_to_screen(&mut self, map: &Vec<Vec<map::Tile>>, state: &GameState) {
 		// create a matrix of tiles to display, starting off with blanks and then we'll fill
 		// in the squares that are actually visible.
 		let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
-		for _ in 0..21 {
-			v_matrix.push(vec![map::Tile::Blank; 41]);
+		for _ in 0..FOV_HEIGHT {
+			v_matrix.push(vec![map::Tile::Blank; FOV_WIDTH]);
 		}
 
-		for row in -10..11 {
-			for col in -20..21 {
-				let actual_r: i32 = state.player_row as i32 + row;
-				let actual_c: i32 = state.player_col as i32 + col;
+		let fov_center_r = FOV_HEIGHT / 2;
+		let fov_center_c = FOV_WIDTH / 2;
+
+		//for row in -fov_center_r..fov_center_r + 1 {
+		//	for col in -20..21 {
+		for row in 0..FOV_HEIGHT {
+			for col in 0..FOV_WIDTH {
+				let offset_r = row as i32 - fov_center_r as i32;
+				let offset_c = col as i32 - fov_center_c as i32;
+				let actual_r: i32 = state.player_row as i32 + offset_r;
+				let actual_c: i32 = state.player_col as i32 + offset_c;
 
 				mark_visible(state.player_row as i32, state.player_col as i32,
 					actual_r as i32, actual_c as i32, map, &mut v_matrix);
 			}
 		}
 		
-		v_matrix[10][20] = map::Tile::Player;
+		v_matrix[fov_center_r][fov_center_c] = map::Tile::Player;
 
 		self.clear_screen(false);
-		for row in 0..21 {
-			for col in 0..41 {
+		for row in 0..FOV_HEIGHT {
+			for col in 0..FOV_WIDTH {
 				self.write_sq(row, col, v_matrix[row][col]);
 			}
 		}
@@ -514,7 +523,7 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 	
 	state.write_msg_buff("Welcome!");
 	gui.write_msg(&state);
-	gui.write_map_to_screen(map, &state);
+	gui.write_view_to_screen(map, &state);
 	gui.draw();
 
     'mainloop: loop {
@@ -562,7 +571,7 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 	
 		if update {
 			gui.write_msg(&state);
-			gui.write_map_to_screen(map, &state);
+			gui.write_view_to_screen(map, &state);
 			gui.draw();
 		}
     }
@@ -573,7 +582,7 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 fn main() -> Result<(), String> {
 	let map = map::generate_island(65);
 	//let map = map::generate_test_map();
-	let map = map::generate_cave(20, 15);
+	//let map = map::generate_cave(20, 15);
 	//let path = pathfinding::find_path(&map, 4, 4, 9, 9);
 	//println!("{:?}", path);
 	run(&map)?;
