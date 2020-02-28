@@ -260,8 +260,6 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		let fov_center_r = FOV_HEIGHT / 2;
 		let fov_center_c = FOV_WIDTH / 2;
 
-		//for row in -fov_center_r..fov_center_r + 1 {
-		//	for col in -20..21 {
 		for row in 0..FOV_HEIGHT {
 			for col in 0..FOV_WIDTH {
 				let offset_r = row as i32 - fov_center_r as i32;
@@ -580,9 +578,9 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let map = map::generate_island(65);
+	//let map = map::generate_island(65);
 	//let map = map::generate_test_map();
-	//let map = map::generate_cave(20, 15);
+	let map = map::generate_cave(20, 10);
 	//let path = pathfinding::find_path(&map, 4, 4, 9, 9);
 	//println!("{:?}", path);
 	run(&map)?;

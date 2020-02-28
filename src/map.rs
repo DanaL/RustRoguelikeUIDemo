@@ -23,9 +23,15 @@ pub enum Tile {
 	StoneFloor,
 }
 
+// Probably at some point in the dev process, I'll need to begin 
+// storing the map in a struct with extra info instead of just
+// a matrix of Tiles. Then, I won't have to recalculate height and
+// width every time I call the in_bounds() method
 pub fn in_bounds(map: &Vec<Vec<Tile>>, r: i32, c: i32) -> bool {
-	let width = map.len() as i32;
-	r >= 0 && c >= 0 && r < width && c < width
+	let height = map.len() as i32;
+	let width = map[0].len() as i32;
+
+	r >= 0 && c >= 0 && r < height && c < width
 }
 
 pub fn is_clear(tile: Tile) -> bool {
