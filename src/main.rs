@@ -573,10 +573,10 @@ fn run(map: &Vec<Vec<map::Tile>>) -> Result<(), String> {
 fn main() -> Result<(), String> {
 	let map = map::generate_island(65);
 	//let map = map::generate_test_map();
-	map::generate_cave(15, 15);
+	let map = map::generate_cave(20, 15);
 	//let path = pathfinding::find_path(&map, 4, 4, 9, 9);
 	//println!("{:?}", path);
-	//run(&map)?;
+	run(&map)?;
 
     Ok(())
 }
