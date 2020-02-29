@@ -20,6 +20,7 @@ use sdl2::render::WindowCanvas;
 use sdl2::ttf::Font;
 use sdl2::pixels::Color;
 
+const BACKSPACE_CH: char = '\u{0008}';
 const MSG_HISTORY_LENGTH: usize = 50;
 const SCREEN_WIDTH: u32 = 49;
 const SCREEN_HEIGHT: u32 = 22;
@@ -46,6 +47,7 @@ enum Cmd {
 	MoveSW,
 	MoveSE,
 	MsgHistory,
+	TmpAsk,
 }
 
 // I have literally zero clue why Rust wants two lifetime parameters
@@ -109,6 +111,44 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		self.canvas.present();
 	}
 
+	// I need to handle quitting the app actions here too
+	fn wait_for_key_input(&mut self) -> Result<char, String> {
+		loop {
+			for event in self.event_pump.poll_iter() {
+				match event {
+					Event::TextInput { text:val, .. } => { 
+						let ch = val.as_bytes()[0];
+						return Ok(ch as char);
+					},
+					Event::KeyDown {keycode: Some(Keycode::Return), .. } => return Ok('\n'),
+					Event::KeyDown {keycode: Some(Keycode::Backspace), .. } => return Ok(BACKSPACE_CH),
+					_ => { continue; }
+				}
+			}
+		}
+	}
+
+	fn query_user(&mut self, question: &str) -> String {
+		let mut answer = String::from("");
+
+		loop {
+			let mut s = String::from(question);
+			s.push(' ');
+			s.push_str(&answer);
+			self.write_msg(&s);
+			self.draw();
+
+			let ch = self.wait_for_key_input().unwrap();
+			match ch {
+				'\n' => { break; },
+				BACKSPACE_CH => { answer.pop(); },
+				_ => { answer.push(ch); },
+			}
+		}
+
+		answer
+	}
+
 	fn get_command(&mut self) -> Cmd {
 		loop {
 			for event in self.event_pump.poll_iter() {
@@ -120,6 +160,8 @@ impl<'a, 'b> GameUI<'a, 'b> {
 					Event::TextInput { text:val, .. } => {
 						if val == "Q" {
 							return Cmd::Exit;	
+						} else if val == "q" {
+							return Cmd::TmpAsk;
 						} else if val == "k" {
 							return Cmd::MoveN;
 						} else if val == "j" {
@@ -150,7 +192,12 @@ impl<'a, 'b> GameUI<'a, 'b> {
 				// I need to handle a Quit/Exit event here	
 				match event {
 					Event::KeyDown {keycode: Some(Keycode::Escape), ..} |
-						Event::KeyDown {keycode: Some(Keycode::Space), ..} => return,
+					Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
+						// It seemed like the ' ' event was still in the queue.
+						// I guess a TextInput event along with the KeyDown event?
+						self.event_pump.poll_event();
+						return;
+					},
 					_ => continue,
 				}
 			}
@@ -219,11 +266,11 @@ impl<'a, 'b> GameUI<'a, 'b> {
 		self.pause_for_more();
 	}
 
-	fn write_msg(&mut self, state: &GameState) {
+	fn write_msg(&mut self, msg: &str) {
 		self.canvas
 			.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height))
 			.expect("Error clearing message line!");
-		self.write_line(0, &state.msg_buff, false);
+		self.write_line(0, msg, false);
 	}
 
 	fn write_sq(&mut self, r: usize, c: usize, tile: map::Tile) {
@@ -496,6 +543,10 @@ fn show_intro(gui: &mut GameUI) {
 	gui.write_long_msg(&lines);
 }
 
+fn test_query(gui: &mut GameUI, state: &GameState) {
+	gui.query_user("What is the answer?");
+}
+
 fn run(map: &Vec<Vec<map::Tile>>) {
     let ttf_context = sdl2::ttf::init()
 		.expect("Error creating ttf context on start-up!");
@@ -523,9 +574,11 @@ fn run(map: &Vec<Vec<map::Tile>>) {
 	}
 
 	show_intro(&mut gui);
+	let player_name = gui.query_user("Who are you?");
 	
-	state.write_msg_buff("Welcome!");
-	gui.write_msg(&state);
+	state.write_msg_buff(&format!("Welcome, {}!", player_name));
+	
+	gui.write_msg(&state.msg_buff);
 	gui.write_view_to_screen(map, &state);
 	gui.draw();
 
@@ -570,10 +623,15 @@ fn run(map: &Vec<Vec<map::Tile>>) {
 				show_message_history(&state, &mut gui);
 				update = true;
 			},
+
+			Cmd::TmpAsk => {
+				test_query(&mut gui, &state);
+				update = true;
+			},
         }
 	
 		if update {
-			gui.write_msg(&state);
+			gui.write_msg(&state.msg_buff);
 			gui.write_view_to_screen(map, &state);
 			gui.draw();
 		}
