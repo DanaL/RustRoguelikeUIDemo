@@ -5,6 +5,7 @@ extern crate sdl2;
 mod map;
 #[allow(dead_code)]
 mod pathfinding;
+mod fov;
 
 use rand::Rng;
 
@@ -63,6 +64,8 @@ struct GameUI<'a, 'b> {
 	sm_font: &'a Font<'a, 'b>,
 	canvas: WindowCanvas,
 	event_pump: EventPump,
+	curr_msg: String,
+	v_matrix: Vec<Vec<map::Tile>>,
 }
 
 impl<'a, 'b> GameUI<'a, 'b> {
@@ -81,6 +84,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			.build()
 			.map_err(|e| e.to_string())?;
 
+		let mut v_matrix = vec![vec![map::Tile::Blank; FOV_WIDTH]; FOV_HEIGHT];
 		let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 		let mut gui = GameUI { 
 			screen_width_px, screen_height_px, 
@@ -88,27 +92,11 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			canvas,
 			event_pump: sdl_context.event_pump().unwrap(),
 			sm_font, sm_font_width, sm_font_height,
+			curr_msg: String::from(""),
+			v_matrix,
 		};
 
-		gui.canvas.set_draw_color(BLACK);
-		gui.canvas.clear();
-
 		Ok(gui)
-	}
-
-	fn clear_screen(&mut self, clear_msg_line: bool) {
-		let mut start_px = 0;
-  		if !clear_msg_line {
-			start_px = self.font_height as i32;
-		}
-
-		self.canvas.fill_rect(
-			Rect::new(0, start_px, self.screen_width_px, self.screen_height_px)
-		).expect("Error writing rect to clear the screen!");
-	}
-
-	fn draw(&mut self) {
-		self.canvas.present();
 	}
 
 	// I need to handle quitting the app actions here too
@@ -135,8 +123,9 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			let mut s = String::from(question);
 			s.push(' ');
 			s.push_str(&answer);
-			self.write_msg(&s);
-			self.draw();
+
+			self.curr_msg = s;
+			self.write_screen();
 
 			let ch = self.wait_for_key_input().unwrap();
 			match ch {
@@ -152,11 +141,13 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	fn get_command(&mut self) -> Cmd {
 		loop {
 			for event in self.event_pump.poll_iter() {
-				//println!("{:?}", event);
 				match event {
-					Event::KeyDown {keycode: Some(Keycode::Escape), ..} | Event::Quit {..} => { return Cmd::Exit },
+					Event::KeyDown {keycode: Some(Keycode::Escape), ..} 
+						| Event::Quit {..} => { return Cmd::Exit },
 					Event::KeyDown {keycode: Some(Keycode::H), keymod: Mod::LCTRLMOD, .. } |
-					Event::KeyDown {keycode: Some(Keycode::H), keymod: Mod::RCTRLMOD, .. } => { return Cmd::MsgHistory; },
+					Event::KeyDown {keycode: Some(Keycode::H), keymod: Mod::RCTRLMOD, .. } => { 
+						return Cmd::MsgHistory; 
+					},
 					Event::TextInput { text:val, .. } => {
 						if val == "Q" {
 							return Cmd::Exit;	
@@ -205,10 +196,6 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	}
 
 	fn write_line(&mut self, row: i32, line: &str, small_font: bool) {
-		if line.len() == 0 {
-			return;
-		}
-
 		let fw: u32;
 		let fh: u32;	
 		let f: &Font;
@@ -221,6 +208,14 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			f = self.font;
 			fw = self.font_width;
 			fh = self.font_height;
+		}
+
+		if line.len() == 0 {
+			self.canvas
+				.fill_rect(Rect::new(0, row * fh as i32, self.screen_width_px, fh))
+				.expect("Error line!");
+
+			return;
 		}
 
 		let surface = f.render(line)
@@ -239,7 +234,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	// lines don't have too many characterse. Something for a post 7DRL world
 	// I guess.
 	fn write_long_msg(&mut self, lines: &Vec<String>) {
-		self.clear_screen(true);		
+		self.canvas.clear();
 		
 		let display_lines = (self.screen_height_px / self.sm_font_height) as usize;
 		let line_count = lines.len();
@@ -253,24 +248,17 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			if curr_row == display_lines - 2 && curr_line < line_count {
 				self.write_line(curr_row as i32, "", true);
 				self.write_line(curr_row as i32 + 1, "-- Press space to continue --", true);
-				self.draw();
+				self.canvas.present();
 				self.pause_for_more();
 				curr_row = 0;
-				self.clear_screen(true);		
+				self.canvas.clear();
 			}
 		}
 
 		self.write_line(curr_row as i32, "", true);
 		self.write_line(curr_row as i32 + 1, "-- Press space to continue --", true);
-		self.draw();
+		self.canvas.present();
 		self.pause_for_more();
-	}
-
-	fn write_msg(&mut self, msg: &str) {
-		self.canvas
-			.fill_rect(Rect::new(0, 0, self.screen_width_px, self.font_height))
-			.expect("Error clearing message line!");
-		self.write_line(0, msg, false);
 	}
 
 	fn write_sq(&mut self, r: usize, c: usize, tile: map::Tile) {
@@ -302,37 +290,18 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			.expect("Error copying to canvas!");
 	}
 
-	fn write_view_to_screen(&mut self, map: &Vec<Vec<map::Tile>>, state: &GameState) {
-		// create a matrix of tiles to display, starting off with blanks and then we'll fill
-		// in the squares that are actually visible.
-		let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
-		for _ in 0..FOV_HEIGHT {
-			v_matrix.push(vec![map::Tile::Blank; FOV_WIDTH]);
-		}
-
-		let fov_center_r = FOV_HEIGHT / 2;
-		let fov_center_c = FOV_WIDTH / 2;
-
+	fn write_screen(&mut self) {
+		self.canvas.set_draw_color(BLACK);
+		self.canvas.clear();
+		let s = self.curr_msg.clone();
+		self.write_line(0, &s, false);
 		for row in 0..FOV_HEIGHT {
 			for col in 0..FOV_WIDTH {
-				let offset_r = row as i32 - fov_center_r as i32;
-				let offset_c = col as i32 - fov_center_c as i32;
-				let actual_r: i32 = state.player_row as i32 + offset_r;
-				let actual_c: i32 = state.player_col as i32 + offset_c;
-
-				mark_visible(state.player_row as i32, state.player_col as i32,
-					actual_r as i32, actual_c as i32, map, &mut v_matrix);
+				self.write_sq(row, col, self.v_matrix[row][col]);
 			}
 		}
-		
-		v_matrix[fov_center_r][fov_center_c] = map::Tile::Player;
 
-		self.clear_screen(false);
-		for row in 0..FOV_HEIGHT {
-			for col in 0..FOV_WIDTH {
-				self.write_sq(row, col, v_matrix[row][col]);
-			}
-		}
+		self.canvas.present();
 	}
 }
 
@@ -366,109 +335,6 @@ impl GameState {
 	}
 }
 
-// Using bresenham line casting to detect blocked squares. If a ray hits
-// a Wall before reaching target then we can't see it. Bresenham isn't 
-// really a good way to do this because it leaves blindspots the further
-// away you get. But it should suffice for this, where I'm just mucking
-// around with displaying via SDL2. For a real game I'll use something
-// like shadowcasting, like I did in crashRun.
-// (Although honestly for this simple dmeo it seems to work okay! Mind you,
-// this is a really inefficient implementation since we visible and mark
-// the same squares several times)
-fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &Vec<Vec<map::Tile>>,
-		v_matrix: &mut Vec<Vec<map::Tile>>) {
-	let mut r = r1;
-	let mut c = c1;
-	let mut error = 0;
-
-	let mut r_step = 1;
-	let mut delta_r = r2 - r;
-	if delta_r < 0 {
-		delta_r = -delta_r;
-		r_step = -1;
-	} 
-
-	let mut c_step = 1;
-	let mut delta_c = c2 - c;
-	if delta_c < 0 {
-		delta_c = -delta_c;
-		c_step = -1;
-	} 
-
-	let mut r_end = r2;
-	let mut c_end = c2;
-	if delta_c <= delta_r {
-		let criterion = delta_r / 2;
-		loop {
-			if r_step > 0 && r >= r_end + r_step {
-				break;
-			} else if r_step < 0 && r <= r_end + r_step {
-				break;
-			}
-
-			if !map::in_bounds(map, r, c) {
-				return;
-			}
-
-			v_matrix[(r - r1 + 10) as usize][(c - c1 + 20) as usize] = map[r as usize][c as usize];
-
-			if !map::is_clear(map[r as usize][c as usize]) {
-				return;
-			}
-
-			// I want trees to not totally block light, but instead reduce visibility
-			if map::Tile::Tree == map[r as usize][c as usize] && !(r == r1 && c == c1) {
-				if r_step > 0 {
-					r_end -= 3;
-				} else {
-					r_end += 3;
-				}
-			}
-
-			r += r_step;
-			error += delta_c;
-			if error > criterion {
-				error -= delta_r;
-				c += c_step;
-			}
-		} 	
-	} else {
-		let criterion = delta_c / 2;
-		loop {
-			if c_step > 0 && c >= c_end + c_step {
-				break;
-			} else if c_step < 0 && c <= c_end + c_step {
-				break;
-			}
-
-			if !map::in_bounds(map, r, c) {
-				return;
-			}
-
-			v_matrix[(r - r1 + 10) as usize][(c - c1 + 20) as usize] = map[r as usize][c as usize];
-
-			if !map::is_clear(map[r as usize][c as usize]) {
-				return;
-			}
-		
-			// I want trees to not totally block light, but instead reduce visibility
-			if map::Tile::Tree == map[r as usize][c as usize] && !(r == r1 && c == c1) {
-				if c_step > 0 {
-					c_end -= 3;
-				} else {
-					c_end += 3;
-				}
-			}
-			
-			c += c_step;
-			error += delta_r;
-			if error > criterion {
-				error -= delta_c;
-				r += r_step;
-			}
-		}
-	}
-}
 
 fn get_move_tuple(mv: &str) -> (i16, i16) {
 	let res: (i16, i16);
@@ -574,13 +440,19 @@ fn run(map: &Vec<Vec<map::Tile>>) {
 	}
 
 	show_intro(&mut gui);
+
+	let mut lines = vec!["Here is a second page of text".to_string()];
+	lines.push("lorem ipsum".to_string());
+	lines.push("".to_string());
+	lines.push("lorem ipsum".to_string());
+	gui.write_long_msg(&lines);
+		
 	let player_name = gui.query_user("Who are you?");
 	
 	state.write_msg_buff(&format!("Welcome, {}!", player_name));
-	
-	gui.write_msg(&state.msg_buff);
-	gui.write_view_to_screen(map, &state);
-	gui.draw();
+	gui.curr_msg = state.msg_buff.to_string();
+	gui.v_matrix = fov::calc_v_matrix(&map, state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
+	gui.write_screen();
 
     'mainloop: loop {
 		let mut update = false;
@@ -631,9 +503,10 @@ fn run(map: &Vec<Vec<map::Tile>>) {
         }
 	
 		if update {
-			gui.write_msg(&state.msg_buff);
-			gui.write_view_to_screen(map, &state);
-			gui.draw();
+			gui.v_matrix = fov::calc_v_matrix(&map, 
+				state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
+			gui.curr_msg = state.msg_buff.to_string();
+			gui.write_screen();
 		}
     }
 }
