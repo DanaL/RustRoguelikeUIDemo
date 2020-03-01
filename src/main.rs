@@ -10,6 +10,7 @@ mod map;
 mod pathfinding;
 
 use crate::actor::Act;
+use crate::items::ItemsTable;
 
 use rand::Rng;
 
@@ -45,8 +46,6 @@ static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
 
 type Map = Vec<Vec<map::Tile>>;
 type NPCTable = HashMap<(usize, usize), Rc<RefCell<dyn actor::Act>>>;
-// eventually this will be a stack of items
-type ItemsTable = HashMap<(usize, usize), items::Item>;
 
 enum Cmd {
 	Exit,
@@ -457,7 +456,15 @@ fn add_test_item(map: &Map, items: &mut ItemsTable) {
 
 	let i = items::Item::new("draught of rum", items::ItemType::Drink, 1,
 		'!', BROWN);
-	items.insert((row, col), i);	
+	items.add(row, col, i);	
+
+	let i = items::Item::new("rusty cutlass", items::ItemType::Weapon, 3,
+		'|', WHITE);
+	items.add(row, col, i);	
+
+	let i = items::Item::new("draught of gin", items::ItemType::Weapon, 3,
+		'!', WHITE);
+	items.add(row, col + 1, i);	
 }
 
 fn run(map: &Map) {
@@ -499,7 +506,7 @@ fn run(map: &Map) {
 	let mut npcs: NPCTable = HashMap::new();
 	add_monster(map, &mut state, &mut npcs);
 
-	let mut items: ItemsTable = HashMap::new();
+	let mut items = ItemsTable::new();
 	add_test_item(map, &mut items);
 
 	state.write_msg_buff(&format!("Welcome, {}!", player_name));

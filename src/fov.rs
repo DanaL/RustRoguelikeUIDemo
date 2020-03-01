@@ -1,9 +1,10 @@
 use crate::map;
+use crate::items::{ItemsTable, TileInfo};
 
 fn calc_actual_tile(r: usize, c: usize, map: &super::Map, 
-		npcs: &super::NPCTable, items: &super::ItemsTable) -> map::Tile {
-	if items.contains_key(&(r, c)) {
-		let i = items.get(&(r, c)).unwrap();
+		npcs: &super::NPCTable, items: &ItemsTable) -> map::Tile {
+	if !items.is_empty(r, c) {
+		let i = items.get_top(r, c);
 		let ti = i.get_tile_info();
 		map::Tile::Thing(ti.0, ti.1)
 	} else if npcs.contains_key(&(r, c)) {
@@ -28,7 +29,7 @@ fn calc_actual_tile(r: usize, c: usize, map: &super::Map,
 // blocking vision and I couldn't think of a simple way to do that with 
 // shadowcasting.
 fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
-		npcs: &super::NPCTable, items: &super::ItemsTable,
+		npcs: &super::NPCTable, items: &ItemsTable,
 		v_matrix: &mut Vec<Vec<map::Tile>>) {
 	let mut r = r1;
 	let mut c = c1;
@@ -132,7 +133,7 @@ fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
 pub fn calc_v_matrix(
 		map: &Vec<Vec<map::Tile>>,
 		npcs: &super::NPCTable,
-		items: &super::ItemsTable,
+		items: &ItemsTable,
 		player_row: usize, player_col: usize,
 		height: usize, width: usize) -> Vec<Vec<map::Tile>> {
 	let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
