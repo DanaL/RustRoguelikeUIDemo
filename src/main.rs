@@ -371,7 +371,7 @@ fn get_move_tuple(mv: &str) -> (i16, i16) {
 	res
 }
 
-fn do_move(map: &Map, state: &mut GameState, npcs: &NPCTable, dir: &str) {
+fn do_move(map: &Map, state: &mut GameState, npcs: &NPCTable, items: &ItemsTable, dir: &str) {
 	let mv = get_move_tuple(dir);
 	let next_row = state.player_row as i16 + mv.0;
 	let next_col = state.player_col as i16 + mv.1;
@@ -389,6 +389,15 @@ fn do_move(map: &Map, state: &mut GameState, npcs: &NPCTable, dir: &str) {
 		} else {
 			state.write_msg_buff("");
 		}
+
+		let items_count = items.count_at(state.player_row, state.player_col);
+		if items_count == 1 {
+			let i = items.get_top(state.player_row, state.player_col);
+			let s = format!("You see a {} here.", i.name);
+			state.write_msg_buff(&s);
+		} else if items_count > 1 {
+			state.write_msg_buff("You see a few items here.");
+		}	
 	} else  {
 		if tile == map::Tile::DeepWater {
 			state.write_msg_buff("You cannot swim!");
@@ -524,35 +533,35 @@ fn run(map: &Map) {
 		match cmd {
 			Cmd::Exit => break 'mainloop,
 			Cmd::MoveW => {
-				do_move(&map, &mut state, &npcs, "W");
+				do_move(&map, &mut state, &npcs, &items, "W");
 				update = true;
 			},
 			Cmd::MoveS => {
-				do_move(&map, &mut state, &npcs, "S");
+				do_move(&map, &mut state, &npcs, &items, "S");
 				update = true;
 			},
 			Cmd::MoveN => {
-				do_move(&map, &mut state, &npcs, "N");
+				do_move(&map, &mut state, &npcs, &items, "N");
 				update = true;
 			},
 			Cmd::MoveE => {
-				do_move(&map, &mut state, &npcs, "E");
+				do_move(&map, &mut state, &npcs, &items, "E");
 				update = true;
 			},
 			Cmd::MoveNW => {
-				do_move(&map, &mut state, &npcs, "NW");
+				do_move(&map, &mut state, &npcs, &items, "NW");
 				update = true;
 			},
 			Cmd::MoveNE => {
-				do_move(&map, &mut state, &npcs, "NE");
+				do_move(&map, &mut state, &npcs, &items, "NE");
 				update = true;
 			},
 			Cmd::MoveSW => {
-				do_move(&map, &mut state, &npcs, "SW");
+				do_move(&map, &mut state, &npcs, &items, "SW");
 				update = true;
 			},
 			Cmd::MoveSE => {
-				do_move(&map, &mut state, &npcs, "SE");
+				do_move(&map, &mut state, &npcs, &items, "SE");
 				update = true;
 			},
 			Cmd::MsgHistory => {

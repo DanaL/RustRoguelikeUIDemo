@@ -30,16 +30,14 @@ impl ItemsTable {
 		stack.push_front(item);
 	}
 
-	pub fn is_empty(&self, r: usize, c: usize) -> bool {
+	pub fn count_at(&self, r: usize, c: usize) -> u8 {
 		let res = if !self.table.contains_key(&(r, c)) {
-			true
-		} else if self.table[&(r, c)].len() == 0 {
-			true
+			0
 		} else {
-			false
+			self.table[&(r, c)].len()
 		};
 
-		res
+		res as u8
 	}
 
 	pub fn get_top(&self, r: usize, c: usize) -> &Item {
@@ -49,9 +47,9 @@ impl ItemsTable {
 }
 
 pub struct Item {
-	name: String,
-	item_type: ItemType,
-	weight: u8,
+	pub name: String,
+	pub item_type: ItemType,
+	pub weight: u8,
 	symbol: char,
 	color: Color,
 }

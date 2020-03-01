@@ -3,7 +3,7 @@ use crate::items::{ItemsTable, TileInfo};
 
 fn calc_actual_tile(r: usize, c: usize, map: &super::Map, 
 		npcs: &super::NPCTable, items: &ItemsTable) -> map::Tile {
-	if !items.is_empty(r, c) {
+	if items.count_at(r, c) > 0 {
 		let i = items.get_top(r, c);
 		let ti = i.get_tile_info();
 		map::Tile::Thing(ti.0, ti.1)
