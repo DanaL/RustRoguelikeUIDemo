@@ -1,11 +1,15 @@
 use crate::map;
 
 fn calc_actual_tile(r: usize, c: usize, map: &super::Map, 
-		npcs: &super::NPCTable) -> map::Tile {
-	if npcs.contains_key(&(r, c)) {
+		npcs: &super::NPCTable, items: &super::ItemsTable) -> map::Tile {
+	if items.contains_key(&(r, c)) {
+		let i = items.get(&(r, c)).unwrap();
+		let ti = i.get_tile_info();
+		map::Tile::Thing(ti.0, ti.1)
+	} else if npcs.contains_key(&(r, c)) {
 		let m = npcs.get(&(r, c)).unwrap().borrow();
 		let ti = m.get_tile_info();
-		map::Tile::NPC(ti.0, ti.1)
+		map::Tile::Thing(ti.0, ti.1)
 	} else {
 		map[r][c]
 	}
@@ -24,7 +28,7 @@ fn calc_actual_tile(r: usize, c: usize, map: &super::Map,
 // blocking vision and I couldn't think of a simple way to do that with 
 // shadowcasting.
 fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
-		npcs: &super::NPCTable,
+		npcs: &super::NPCTable, items: &super::ItemsTable,
 		v_matrix: &mut Vec<Vec<map::Tile>>) {
 	let mut r = r1;
 	let mut c = c1;
@@ -61,7 +65,7 @@ fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
 
 			let vm_r = (r - r1 + 10) as usize;
 			let vm_c = (c - c1 + 20) as usize;
-			v_matrix[vm_r][vm_c] = calc_actual_tile(r as usize, c as usize, map, npcs);
+			v_matrix[vm_r][vm_c] = calc_actual_tile(r as usize, c as usize, map, npcs, items);
 
 			if !map::is_clear(map[r as usize][c as usize]) {
 				return;
@@ -98,7 +102,7 @@ fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
 
 			let vm_r = (r - r1 + 10) as usize;
 			let vm_c = (c - c1 + 20) as usize;
-			v_matrix[vm_r][vm_c] = calc_actual_tile(r as usize, c as usize, map, npcs);
+			v_matrix[vm_r][vm_c] = calc_actual_tile(r as usize, c as usize, map, npcs, items);
 
 			if !map::is_clear(map[r as usize][c as usize]) {
 				return;
@@ -128,6 +132,7 @@ fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
 pub fn calc_v_matrix(
 		map: &Vec<Vec<map::Tile>>,
 		npcs: &super::NPCTable,
+		items: &super::ItemsTable,
 		player_row: usize, player_col: usize,
 		height: usize, width: usize) -> Vec<Vec<map::Tile>> {
 	let mut v_matrix: Vec<Vec<map::Tile>> = Vec::new();
@@ -146,7 +151,7 @@ pub fn calc_v_matrix(
 			let actual_c: i32 = player_col as i32 + offset_c;
 
 			mark_visible(player_row as i32, player_col as i32,
-				actual_r as i32, actual_c as i32, map, npcs, &mut v_matrix);
+				actual_r as i32, actual_c as i32, map, npcs, items, &mut v_matrix);
 		}
 	}
 	

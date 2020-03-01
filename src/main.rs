@@ -3,6 +3,7 @@ extern crate sdl2;
 
 mod actor;
 mod fov;
+mod items;
 #[allow(dead_code)]
 mod map;
 #[allow(dead_code)]
@@ -44,6 +45,8 @@ static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
 
 type Map = Vec<Vec<map::Tile>>;
 type NPCTable = HashMap<(usize, usize), Rc<RefCell<dyn actor::Act>>>;
+// eventually this will be a stack of items
+type ItemsTable = HashMap<(usize, usize), items::Item>;
 
 enum Cmd {
 	Exit,
@@ -284,7 +287,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			map::Tile::Mountain => ('^', GREY),
 			map::Tile::SnowPeak => ('^', WHITE),
 			map::Tile::Gate => ('#', LIGHT_BLUE),
-			map::Tile::NPC(color, ch) => (ch, color),
+			map::Tile::Thing(color, ch) => (ch, color),
 		};
 
 		let surface = self.font.render_char(ch)
@@ -441,6 +444,22 @@ fn add_monster(map: &Map, state: &mut GameState, npcs: &mut NPCTable) {
 	npcs.insert((row, col), Rc::new(RefCell::new(m)));
 }
 
+fn add_test_item(map: &Map, items: &mut ItemsTable) {
+	let mut row = 0;
+	let mut col = 0;
+	loop {
+		row = rand::thread_rng().gen_range(0, map.len());
+		col = rand::thread_rng().gen_range(0, map[0].len());
+
+		let tile = map[row][col];
+		if map::is_passable(tile) { break; };
+	}	
+
+	let i = items::Item::new("draught of rum", items::ItemType::Drink, 1,
+		'!', BROWN);
+	items.insert((row, col), i);	
+}
+
 fn run(map: &Map) {
     let ttf_context = sdl2::ttf::init()
 		.expect("Error creating ttf context on start-up!");
@@ -480,12 +499,15 @@ fn run(map: &Map) {
 	let mut npcs: NPCTable = HashMap::new();
 	add_monster(map, &mut state, &mut npcs);
 
+	let mut items: ItemsTable = HashMap::new();
+	add_test_item(map, &mut items);
+
 	state.write_msg_buff(&format!("Welcome, {}!", player_name));
 	gui.curr_msg = state.msg_buff.to_string();
-	gui.v_matrix = fov::calc_v_matrix(&map, &npcs, 
+	gui.v_matrix = fov::calc_v_matrix(&map, &npcs, &items,
 		state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
 	gui.write_screen();
-
+	
     'mainloop: loop {
 		//let mut m = npcs.get(&(17, 17)).unwrap().borrow_mut();
 		//let initiative_order = vec![m];
@@ -538,7 +560,7 @@ fn run(map: &Map) {
         }
 	
 		if update {
-			gui.v_matrix = fov::calc_v_matrix(&map, &npcs,
+			gui.v_matrix = fov::calc_v_matrix(&map, &npcs, &items,
 				state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
 			gui.curr_msg = state.msg_buff.to_string();
 			gui.write_screen();
