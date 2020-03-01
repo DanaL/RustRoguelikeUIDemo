@@ -74,7 +74,6 @@ struct GameUI<'a, 'b> {
 	sm_font: &'a Font<'a, 'b>,
 	canvas: WindowCanvas,
 	event_pump: EventPump,
-	curr_msg: String,
 	v_matrix: Map,
 }
 
@@ -102,7 +101,6 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			canvas,
 			event_pump: sdl_context.event_pump().unwrap(),
 			sm_font, sm_font_width, sm_font_height,
-			curr_msg: String::from(""),
 			v_matrix,
 		};
 
@@ -134,8 +132,9 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			s.push(' ');
 			s.push_str(&answer);
 
-			self.curr_msg = s;
-			self.write_screen();
+			let mut msgs = VecDeque::new();
+			msgs.push_front(s);
+			self.write_screen(&mut msgs);
 
 			let ch = self.wait_for_key_input().unwrap();
 			match ch {
@@ -301,11 +300,11 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			.expect("Error copying to canvas!");
 	}
 
-	fn write_screen(&mut self) {
+	fn draw_frame(&mut self, msg: &str) {
 		self.canvas.set_draw_color(BLACK);
 		self.canvas.clear();
-		let s = self.curr_msg.clone();
-		self.write_line(0, &s, false);
+
+		self.write_line(0, msg, false);
 		for row in 0..FOV_HEIGHT {
 			for col in 0..FOV_WIDTH {
 				self.write_sq(row, col, self.v_matrix[row][col]);
@@ -314,23 +313,51 @@ impl<'a, 'b> GameUI<'a, 'b> {
 
 		self.canvas.present();
 	}
+
+	fn write_screen(&mut self, msgs: &mut VecDeque<String>) {
+		if msgs.len() == 0 {
+			self.draw_frame("");
+		} else {
+			let mut s = String::from("");
+			let mut draw = false;
+			loop {
+				if msgs.len() == 0 {
+					self.draw_frame(&s);
+					break;
+				} 
+
+				let msg = msgs.get(0).unwrap();
+				if s.len() + msg.len() < SCREEN_WIDTH as usize - 9 {
+					s.push_str(msg);
+					s.push_str(" ");
+					msgs.pop_front();
+				} else {
+					s.push_str("--More--");
+					self.draw_frame(&s);
+					self.pause_for_more();
+					s = String::from("");
+				}
+			}
+		}
+	}
 }
 
 pub struct GameState {
 	player_row: usize,
 	player_col: usize,
-	msg_buff: String,
+	msg_buff: VecDeque<String>,
 	msg_history: VecDeque<(String, u32)>,
 }
 
 impl GameState {
 	pub fn new(r: usize, c: usize) -> GameState {
-		GameState {player_row: r, player_col: c, msg_buff: String::from(""),
+		GameState {player_row: r, player_col: c, msg_buff: VecDeque::new(),
 			msg_history: VecDeque::new() }
 	}
 
 	pub fn write_msg_buff(&mut self, msg: &str) {
-		self.msg_buff = String::from(msg);
+		let s = String::from(msg);
+		self.msg_buff.push_back(s);
 
 		if msg.len() > 0 {
 			if self.msg_history.len() == 0 || msg != self.msg_history[0].0 {
@@ -386,9 +413,7 @@ fn do_move(map: &Map, state: &mut GameState, npcs: &NPCTable, items: &ItemsTable
 
 		if tile == map::Tile::Water {
 			state.write_msg_buff("You splash in the shallow water.");
-		} else {
-			state.write_msg_buff("");
-		}
+		} 
 
 		let items_count = items.count_at(state.player_row, state.player_col);
 		if items_count == 1 {
@@ -459,8 +484,9 @@ fn add_test_item(map: &Map, items: &mut ItemsTable) {
 		row = rand::thread_rng().gen_range(0, map.len());
 		col = rand::thread_rng().gen_range(0, map[0].len());
 
-		let tile = map[row][col];
-		if map::is_passable(tile) { break; };
+		//let tile = map[row][col];
+		//if map::is_passable(tile) { break; };
+		if map[row][col] == map::Tile::Water { break; };
 	}	
 
 	let i = items::Item::new("draught of rum", items::ItemType::Drink, 1,
@@ -519,10 +545,9 @@ fn run(map: &Map) {
 	add_test_item(map, &mut items);
 
 	state.write_msg_buff(&format!("Welcome, {}!", player_name));
-	gui.curr_msg = state.msg_buff.to_string();
 	gui.v_matrix = fov::calc_v_matrix(&map, &npcs, &items,
 		state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
-	gui.write_screen();
+	gui.write_screen(&mut state.msg_buff);
 	
     'mainloop: loop {
 		//let mut m = npcs.get(&(17, 17)).unwrap().borrow_mut();
@@ -578,8 +603,7 @@ fn run(map: &Map) {
 		if update {
 			gui.v_matrix = fov::calc_v_matrix(&map, &npcs, &items,
 				state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
-			gui.curr_msg = state.msg_buff.to_string();
-			gui.write_screen();
+			gui.write_screen(&mut state.msg_buff);
 		}
     }
 }
