@@ -369,12 +369,16 @@ fn get_move_tuple(mv: &str) -> (i16, i16) {
 	res
 }
 
-fn do_move(map: &Map, state: &mut GameState, dir: &str) {
+fn do_move(map: &Map, state: &mut GameState, npcs: &NPCTable, dir: &str) {
 	let mv = get_move_tuple(dir);
 	let next_row = state.player_row as i16 + mv.0;
 	let next_col = state.player_col as i16 + mv.1;
 	let tile = map[next_row as usize][next_col as usize];
-	if map::is_passable(tile) {
+	
+	if npcs.contains_key(&(next_row as usize, next_col as usize)) {
+		state.write_msg_buff("There is someone in your way!");
+	}
+	else if map::is_passable(tile) {
 		state.player_col = next_col as usize;
 		state.player_row = next_row as usize;
 
@@ -491,35 +495,35 @@ fn run(map: &Map) {
 		match cmd {
 			Cmd::Exit => break 'mainloop,
 			Cmd::MoveW => {
-				do_move(&map, &mut state, "W");
+				do_move(&map, &mut state, &npcs, "W");
 				update = true;
 			},
 			Cmd::MoveS => {
-				do_move(&map, &mut state, "S");
+				do_move(&map, &mut state, &npcs, "S");
 				update = true;
 			},
 			Cmd::MoveN => {
-				do_move(&map, &mut state, "N");
+				do_move(&map, &mut state, &npcs, "N");
 				update = true;
 			},
 			Cmd::MoveE => {
-				do_move(&map, &mut state, "E");
+				do_move(&map, &mut state, &npcs, "E");
 				update = true;
 			},
 			Cmd::MoveNW => {
-				do_move(&map, &mut state, "NW");
+				do_move(&map, &mut state, &npcs, "NW");
 				update = true;
 			},
 			Cmd::MoveNE => {
-				do_move(&map, &mut state, "NE");
+				do_move(&map, &mut state, &npcs, "NE");
 				update = true;
 			},
 			Cmd::MoveSW => {
-				do_move(&map, &mut state, "SW");
+				do_move(&map, &mut state, &npcs, "SW");
 				update = true;
 			},
 			Cmd::MoveSE => {
-				do_move(&map, &mut state, "SE");
+				do_move(&map, &mut state, &npcs, "SE");
 				update = true;
 			},
 			Cmd::MsgHistory => {
