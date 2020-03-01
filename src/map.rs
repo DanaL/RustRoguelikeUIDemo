@@ -1,10 +1,12 @@
 extern crate rand;
+extern crate sdl2;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::f32;
 
 use rand::Rng;
-use std::f32;
+use sdl2::pixels::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Tile {
@@ -21,6 +23,7 @@ pub enum Tile {
 	SnowPeak,
 	Gate,
 	StoneFloor,
+	NPC(Color, char),
 }
 
 // Probably at some point in the dev process, I'll need to begin 

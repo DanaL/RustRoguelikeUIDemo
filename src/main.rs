@@ -1,16 +1,21 @@
 extern crate rand;
 extern crate sdl2;
 
+mod actor;
+mod fov;
 #[allow(dead_code)]
 mod map;
 #[allow(dead_code)]
 mod pathfinding;
-mod fov;
+
+use crate::actor::Act;
 
 use rand::Rng;
 
-use std::collections::VecDeque;
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
+use std::rc::Rc;
 
 use sdl2::event::Event;
 use sdl2::EventPump;
@@ -36,6 +41,9 @@ static BROWN: Color = Color::RGBA(153, 0, 0, 255);
 static BLUE: Color = Color::RGBA(0, 0, 221, 255);
 static LIGHT_BLUE: Color = Color::RGBA(55, 198, 255, 255);
 static BEIGE: Color = Color::RGBA(255, 178, 127, 255);
+
+type Map = Vec<Vec<map::Tile>>;
+type NPCTable = HashMap<(usize, usize), Rc<RefCell<dyn actor::Act>>>;
 
 enum Cmd {
 	Exit,
@@ -65,7 +73,7 @@ struct GameUI<'a, 'b> {
 	canvas: WindowCanvas,
 	event_pump: EventPump,
 	curr_msg: String,
-	v_matrix: Vec<Vec<map::Tile>>,
+	v_matrix: Map,
 }
 
 impl<'a, 'b> GameUI<'a, 'b> {
@@ -84,7 +92,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			.build()
 			.map_err(|e| e.to_string())?;
 
-		let mut v_matrix = vec![vec![map::Tile::Blank; FOV_WIDTH]; FOV_HEIGHT];
+		let v_matrix = vec![vec![map::Tile::Blank; FOV_WIDTH]; FOV_HEIGHT];
 		let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 		let mut gui = GameUI { 
 			screen_width_px, screen_height_px, 
@@ -276,6 +284,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 			map::Tile::Mountain => ('^', GREY),
 			map::Tile::SnowPeak => ('^', WHITE),
 			map::Tile::Gate => ('#', LIGHT_BLUE),
+			map::Tile::NPC(color, ch) => (ch, color),
 		};
 
 		let surface = self.font.render_char(ch)
@@ -305,7 +314,7 @@ impl<'a, 'b> GameUI<'a, 'b> {
 	}
 }
 
-struct GameState {
+pub struct GameState {
 	player_row: usize,
 	player_col: usize,
 	msg_buff: String,
@@ -313,12 +322,12 @@ struct GameState {
 }
 
 impl GameState {
-	fn new(r: usize, c: usize) -> GameState {
+	pub fn new(r: usize, c: usize) -> GameState {
 		GameState {player_row: r, player_col: c, msg_buff: String::from(""),
 			msg_history: VecDeque::new() }
 	}
 
-	fn write_msg_buff(&mut self, msg: &str) {
+	pub fn write_msg_buff(&mut self, msg: &str) {
 		self.msg_buff = String::from(msg);
 
 		if msg.len() > 0 {
@@ -360,7 +369,7 @@ fn get_move_tuple(mv: &str) -> (i16, i16) {
 	res
 }
 
-fn do_move(map: &Vec<Vec<map::Tile>>, state: &mut GameState, dir: &str) {
+fn do_move(map: &Map, state: &mut GameState, dir: &str) {
 	let mv = get_move_tuple(dir);
 	let next_row = state.player_row as i16 + mv.0;
 	let next_col = state.player_col as i16 + mv.1;
@@ -413,7 +422,22 @@ fn test_query(gui: &mut GameUI, state: &GameState) {
 	gui.query_user("What is the answer?");
 }
 
-fn run(map: &Vec<Vec<map::Tile>>) {
+fn add_monster(map: &Map, state: &mut GameState, npcs: &mut NPCTable) {
+	let mut row = 0;
+	let mut col = 0;
+	loop {
+		row = rand::thread_rng().gen_range(0, map.len());
+		col = rand::thread_rng().gen_range(0, map[0].len());
+
+		let tile = map[row][col];
+		if map::is_passable(tile) { break; };
+	}	
+	
+	let mut m = actor::Monster::new(13, 25, 'o', row, col, BLUE);
+	npcs.insert((row, col), Rc::new(RefCell::new(m)));
+}
+
+fn run(map: &Map) {
     let ttf_context = sdl2::ttf::init()
 		.expect("Error creating ttf context on start-up!");
 	let font_path: &Path = Path::new("DejaVuSansMono.ttf");
@@ -449,12 +473,19 @@ fn run(map: &Vec<Vec<map::Tile>>) {
 		
 	let player_name = gui.query_user("Who are you?");
 	
+	let mut npcs: NPCTable = HashMap::new();
+	add_monster(map, &mut state, &mut npcs);
+
 	state.write_msg_buff(&format!("Welcome, {}!", player_name));
 	gui.curr_msg = state.msg_buff.to_string();
-	gui.v_matrix = fov::calc_v_matrix(&map, state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
+	gui.v_matrix = fov::calc_v_matrix(&map, &npcs, 
+		state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
 	gui.write_screen();
 
     'mainloop: loop {
+		//let mut m = npcs.get(&(17, 17)).unwrap().borrow_mut();
+		//let initiative_order = vec![m];
+
 		let mut update = false;
 		let cmd = gui.get_command();
 		match cmd {
@@ -503,7 +534,7 @@ fn run(map: &Vec<Vec<map::Tile>>) {
         }
 	
 		if update {
-			gui.v_matrix = fov::calc_v_matrix(&map, 
+			gui.v_matrix = fov::calc_v_matrix(&map, &npcs,
 				state.player_row, state.player_col, FOV_HEIGHT, FOV_WIDTH);
 			gui.curr_msg = state.msg_buff.to_string();
 			gui.write_screen();
