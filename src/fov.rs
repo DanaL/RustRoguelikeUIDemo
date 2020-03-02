@@ -1,10 +1,11 @@
 use crate::map;
+use super::{Map, NPCTable};
 use crate::items::{ItemsTable, TileInfo};
 
-fn calc_actual_tile(r: usize, c: usize, map: &super::Map, 
-		npcs: &super::NPCTable, items: &ItemsTable) -> map::Tile {
+fn calc_actual_tile(r: usize, c: usize, map: &Map, 
+		npcs: &NPCTable, items: &ItemsTable) -> map::Tile {
 	if items.count_at(r, c) > 0 {
-		let i = items.get_top(r, c);
+		let i = items.peek_top(r, c);
 		let ti = i.get_tile_info();
 		map::Tile::Thing(ti.0, ti.1)
 	} else if npcs.contains_key(&(r, c)) {
@@ -28,8 +29,8 @@ fn calc_actual_tile(r: usize, c: usize, map: &super::Map,
 // As well, I wanted to have the trees obscure/reduce the FOV instead of outright
 // blocking vision and I couldn't think of a simple way to do that with 
 // shadowcasting.
-fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
-		npcs: &super::NPCTable, items: &ItemsTable,
+fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &Map,
+		npcs: &NPCTable, items: &ItemsTable,
 		v_matrix: &mut Vec<Vec<map::Tile>>) {
 	let mut r = r1;
 	let mut c = c1;
@@ -132,7 +133,7 @@ fn mark_visible(r1: i32, c1: i32, r2: i32, c2: i32, map: &super::Map,
 // not yet taking into account objects on the ground and monsters...
 pub fn calc_v_matrix(
 		map: &Vec<Vec<map::Tile>>,
-		npcs: &super::NPCTable,
+		npcs: &NPCTable,
 		items: &ItemsTable,
 		player_row: usize, player_col: usize,
 		height: usize, width: usize) -> Vec<Vec<map::Tile>> {
