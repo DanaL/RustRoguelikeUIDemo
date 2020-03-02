@@ -53,7 +53,7 @@ impl Inventory {
 
 		let max = if count < v.1 {
 			v.1 -= count;
-			let replacement = ( Item { name: v.0.name.clone(), ..v.0 }, v.1 );
+			let mut replacement = ( Item { name: v.0.name.clone(), ..v.0 }, v.1 );
 			self.inv.insert(slot, replacement);
 			count	
 		} else {
@@ -64,7 +64,9 @@ impl Inventory {
 		};
 
 		for _ in 0..max {
-			items.push(Item { name:v.0.name.clone(), ..v.0 });
+			let mut i = Item { name:v.0.name.clone(), ..v.0 }; 
+			i.prev_slot = slot;
+			items.push(i);
 		}
 
 		items
@@ -73,10 +75,11 @@ impl Inventory {
 	// Again, I'm leaving it up to the caller to ensure the slot exists.
 	// Bad for a library but maybe okay for my internal game code
 	pub fn remove(&mut self, slot: char) -> Item {
-		let v = self.inv.remove(&slot).unwrap();
+		let mut v = self.inv.remove(&slot).unwrap();
 		if self.next_slot == '\0' {
 			self.next_slot = slot;
 		}
+		v.0.prev_slot = slot;
 
 		v.0
 	}
@@ -106,8 +109,14 @@ impl Inventory {
 			}
 		} 
 
-		self.inv.insert(self.next_slot, (item, 1));
-		self.set_next_slot();	
+		// If the last slot the item occupied is still available, use that
+		// instead of the next available slot.
+		if item.prev_slot != '\0' && !self.inv.contains_key(&item.prev_slot) {
+			self.inv.insert(item.prev_slot, (item, 1));
+		} else {
+			self.inv.insert(self.next_slot, (item, 1));
+			self.set_next_slot();
+		}
 	}
 
 	pub fn get_menu(&self) -> Vec<String> {
@@ -205,16 +214,6 @@ impl ItemsTable {
 			s.push_str(") ");
 			s.push_str(&items[j].name);
 	
-			/* stacks on the ground not yet implemented
-			if val.1 == 1 {
-				s.push_str("a ");
-				s.push_str(&val.0.name);
-			} else {
-				s.push_str(&val.0.name);
-				s.push_str(" x");
-				s.push_str(&val.1.to_string());
-			}
-			*/
 			menu.push(s);
 		}
 
@@ -230,13 +229,14 @@ pub struct Item {
 	pub symbol: char,
 	pub color: Color,
 	pub stackable: bool,
+	pub prev_slot: char
 }
 
 impl Item {
 	pub fn new(name: &str, item_type: ItemType, w: u8, stackable: bool,
 			sym: char, color: Color) -> Item {
 		Item { name: String::from(name), 
-			item_type, weight: w, symbol: sym, color, stackable }
+			item_type, weight: w, symbol: sym, color, stackable, prev_slot: '\0' }
 	}
 }
 
