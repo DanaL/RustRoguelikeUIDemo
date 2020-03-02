@@ -151,6 +151,38 @@ fn show_message_history(state: &GameState, gui: &mut GameUI) {
 	gui.write_long_msg(&lines, true);
 }
 
+// Attempt to reasonably pluralize names
+// I'm going to assume a fairly standard form of names of things that
+// can be pluralized. Like, "foo of bar" so I can asssume the result will
+// be foos of bar.
+fn pluralize(name: &str, count: u8) -> String{
+	let mut result = String::from("");
+	let words = name.split(' ').collect::<Vec<&str>>();
+	
+	if words.len() == 1 {
+		result.push_str(name);
+		if name.ends_with("s") || name.ends_with("x") {
+			result.push_str("es");
+		} else {
+			result.push_str("s");
+		}
+	} else {
+		result.push_str(words[0]);
+		if words[0].ends_with("s") || words[0].ends_with("x") {
+			result.push_str("es");
+		} else {
+			result.push_str("s");
+		}
+		
+		for w in 1..words.len() {
+			result.push(' ');
+			result.push_str(words[w]);
+		}
+	}
+
+	result	
+}
+
 fn drop_item(state: &mut GameState, items: &mut ItemsTable, gui: &mut GameUI) {
 	if state.player.inventory.get_menu().len() == 0 {
 		state.write_msg_buff("You are empty handed.");
@@ -167,7 +199,8 @@ fn drop_item(state: &mut GameState, items: &mut ItemsTable, gui: &mut GameUI) {
 					Some(v) => {
 						let pile = state.player.inventory.remove_count(ch, v);
 						if pile.len() > 0 {
-							let mut s = format!("You drop {} {}s", v, pile[0].name);
+							let pluralized = pluralize(&pile[0].name, v);
+							let s = format!("You drop {} {}", v, pluralized);
 							state.write_msg_buff(&s);
 							for item in pile {
 								items.add(state.player.row, state.player.col, item);
